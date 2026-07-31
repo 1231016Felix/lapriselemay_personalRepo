@@ -8,27 +8,36 @@ namespace QuickLauncher.Services;
 /// <summary>
 /// Abstraction pour le lancement de fichiers, applications et commandes système.
 /// Permet l'injection de dépendances et la testabilité (Point #6).
+///
+/// <b>Contrat :</b> les méthodes retournent <c>false</c> quand le lancement a échoué,
+/// afin que l'appelant puisse en informer l'utilisateur. Un échec est toujours journalisé.
 /// </summary>
 public interface ILaunchService
 {
-    void Launch(SearchResult item);
+    /// <summary>Lance un item. Retourne false si le lancement a échoué.</summary>
+    bool Launch(SearchResult item);
+
     void OpenContainingFolder(SearchResult item);
-    void RunAsAdmin(SearchResult item);
+
+    /// <summary>Lance un item avec élévation UAC. Retourne false si le lancement a échoué.</summary>
+    bool RunAsAdmin(SearchResult item);
 }
 
 public class LaunchService : ILaunchService
 {
     private readonly IStoreAppService _storeAppService;
     private readonly IShortcutHelper _shortcutHelper;
+    private readonly ILogger _logger;
 
     // Injection des services par le constructeur
-    public LaunchService(IStoreAppService storeAppService, IShortcutHelper shortcutHelper)
+    public LaunchService(IStoreAppService storeAppService, IShortcutHelper shortcutHelper, ILogger logger)
     {
         _storeAppService = storeAppService ?? throw new ArgumentNullException(nameof(storeAppService));
         _shortcutHelper = shortcutHelper ?? throw new ArgumentNullException(nameof(shortcutHelper));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public void Launch(SearchResult item)
+    public bool Launch(SearchResult item)
     {
         try
         {
@@ -48,7 +57,7 @@ public class LaunchService : ILaunchService
                     {
                         LaunchApplication(item.Path);
                     }
-                    break;
+                    return true;
 
                 case ResultType.StoreApp:
                     // Utiliser shell:AppsFolder pour toutes les apps de AppsFolder
@@ -57,38 +66,45 @@ public class LaunchService : ILaunchService
                         // Fallback: essayer de lancer directement
                         LaunchApplication(item.Path);
                     }
-                    break;
+                    return true;
 
                 case ResultType.Folder:
                     StartProcess("explorer.exe", $"\"{item.Path}\"");
-                    break;
+                    return true;
 
                 case ResultType.Script:
                     LaunchScript(item);
-                    break;
+                    return true;
 
                 case ResultType.WebSearch:
                 case ResultType.Bookmark:
                     StartProcess(item.Path);
-                    break;
+                    return true;
 
                 case ResultType.SystemControl:
                 case ResultType.AppControl:
+                case ResultType.SystemCommand:
                     LaunchSystemControl(item.Path);
-                    break;
+                    return true;
 
                 case ResultType.Calculator:
                     System.Windows.Clipboard.SetText(item.Path);
-                    break;
+                    return true;
 
                 case ResultType.Command:
                     StartProcess("cmd.exe", $"/c {item.Path}");
-                    break;
+                    return true;
+
+                default:
+                    // Type sans action de lancement (Note, SearchHistory déjà réaiguillé, etc.)
+                    _logger.Warning($"Lancement non supporté pour le type {item.Type} ('{item.Name}')");
+                    return false;
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Erreur lancement: {ex.Message}");
+            _logger.Error($"Échec du lancement de '{item.Name}' [{item.Type}] → {item.Path}", ex);
+            return false;
         }
     }
 
@@ -147,7 +163,7 @@ public class LaunchService : ILaunchService
             StartProcess("explorer.exe", $"/select,\"{item.Path}\"");
     }
 
-    public void RunAsAdmin(SearchResult item)
+    public bool RunAsAdmin(SearchResult item)
     {
         try
         {
@@ -194,15 +210,19 @@ public class LaunchService : ILaunchService
                 psi.WorkingDirectory = workingDirectory;
 
             Process.Start(psi);
+            return true;
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
-            // Code 1223 = L'utilisateur a annulé l'élévation UAC (fenêtre "Voulez-vous autoriser..."), on ignore silencieusement
-            Debug.WriteLine("Élévation UAC annulée par l'utilisateur.");
+            // Code 1223 = L'utilisateur a annulé l'élévation UAC (fenêtre "Voulez-vous autoriser...").
+            // Ce n'est pas un échec applicatif : ne pas alerter l'utilisateur sur sa propre décision.
+            _logger.Info($"Élévation UAC annulée par l'utilisateur pour '{item.Name}'");
+            return true;
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Erreur RunAsAdmin: {ex.Message}");
+            _logger.Error($"Échec du lancement en administrateur de '{item.Name}' → {item.Path}", ex);
+            return false;
         }
     }
 
@@ -233,6 +253,14 @@ public class LaunchService : ILaunchService
     private static bool IsFileSystemPath(string path)
         => path.Length >= 3 && char.IsLetter(path[0]) && path[1] == ':' && (path[2] == '\\' || path[2] == '/');
 
+    /// <summary>
+    /// Démarre un processus via le shell. Lève une exception en cas d'échec réel
+    /// (fichier introuvable, accès refusé), ce que <see cref="Launch"/> intercepte.
+    ///
+    /// Note : avec <c>UseShellExecute = true</c>, <see cref="Process.Start(ProcessStartInfo)"/>
+    /// retourne <c>null</c> quand le shell confie l'ouverture à une instance déjà lancée
+    /// (cas courant pour les documents). Ce n'est PAS un échec — ne pas tester la valeur de retour.
+    /// </summary>
     private static void StartProcess(string fileName, string? arguments = null, string? workingDirectory = null)
     {
         var psi = new ProcessStartInfo

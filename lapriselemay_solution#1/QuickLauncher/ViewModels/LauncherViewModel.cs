@@ -24,6 +24,14 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     private readonly FileWatcherService? _fileWatcherService;
     private CancellationTokenSource? _searchCts;
     private CancellationTokenSource? _debounceCts;
+
+    /// <summary>
+    /// Annulation dédiée à la prévisualisation. Sans elle, une navigation rapide
+    /// (flèches maintenues) empile des générations de preview qui se terminent dans
+    /// le désordre : c'est la dernière TERMINÉE qui s'affichait, pas la dernière SÉLECTIONNÉE.
+    /// </summary>
+    private CancellationTokenSource? _previewCts;
+
     private bool _disposed;
     
     /// <summary>
@@ -163,7 +171,7 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
             await Task.Delay(delayMs, token);
             // Vérifier que le texte n'a pas changé pendant le debounce
             if (!token.IsCancellationRequested && text == SearchText)
-                UpdateResultsInternal();
+                await UpdateResultsInternalAsync();
         }
         catch (OperationCanceledException)
         {
@@ -207,13 +215,34 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         FinalizeResults();
     }
     
-    partial void OnSelectedIndexChanged(int value)
+    partial void OnSelectedIndexChanged(int value) => RefreshSelectionDependents(value);
+
+    /// <summary>
+    /// Recalcule tout ce qui dépend de l'item sélectionné (prévisualisation, actions).
+    ///
+    /// Appelé par <see cref="OnSelectedIndexChanged"/>, mais aussi explicitement par
+    /// <see cref="FinalizeResults"/> : après une frappe, la sélection retombe sur l'index 0
+    /// qui est souvent déjà la valeur courante — la notification de changement ne part donc
+    /// pas, alors que l'item À cet index, lui, a changé.
+    /// </summary>
+    private void RefreshSelectionDependents(int index)
     {
-        // Mettre à jour la prévisualisation quand la sélection change
-        if (value >= 0 && value < Results.Count && _settings.Appearance.ShowPreviewPanel)
+        // Toute sélection précédente devient caduque : annuler sa preview en vol.
+        CancelPendingPreview();
+
+        if (index >= 0 && index < Results.Count)
         {
-            _ = UpdatePreviewAsync(Results[value]);
-            UpdateAvailableActions(Results[value]);
+            if (_settings.Appearance.ShowPreviewPanel)
+            {
+                _previewCts = new CancellationTokenSource();
+                _ = UpdatePreviewAsync(Results[index], _previewCts.Token);
+            }
+            else
+            {
+                CurrentPreview = null;
+            }
+
+            UpdateAvailableActions(Results[index]);
         }
         else
         {
@@ -221,8 +250,18 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
             AvailableActions.Clear();
         }
     }
-    
-    private async Task UpdatePreviewAsync(SearchResult result)
+
+    /// <summary>
+    /// Annule et libère la prévisualisation en cours, s'il y en a une.
+    /// </summary>
+    private void CancelPendingPreview()
+    {
+        _previewCts?.Cancel();
+        _previewCts?.Dispose();
+        _previewCts = null;
+    }
+
+    private async Task UpdatePreviewAsync(SearchResult result, CancellationToken token)
     {
         try
         {
@@ -236,11 +275,18 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
             }
             
             var preview = await FilePreviewService.GeneratePreviewAsync(result.Path);
+
+            // La sélection a changé pendant la génération (fichier volumineux, disque lent) :
+            // publier maintenant afficherait la preview d'un item qui n'est plus sélectionné.
+            if (token.IsCancellationRequested)
+                return;
+
             CurrentPreview = preview;
         }
         catch
         {
-            CurrentPreview = null;
+            if (!token.IsCancellationRequested)
+                CurrentPreview = null;
         }
     }
     
@@ -274,16 +320,20 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     private void UpdateResults()
     {
         // Appel direct sans debouncing (utilisé pour les rafraîchissements forcés)
-        UpdateResultsInternal();
+        _ = UpdateResultsInternalAsync();
     }
-    
-    private void UpdateResultsInternal()
+
+    private async Task UpdateResultsInternalAsync()
     {
         // Annuler toute recherche précédente et invalider les résultats async en cours
         _searchCts?.Cancel();
         _searchCts = new CancellationTokenSource();
+        var token = _searchCts.Token;
         var generation = Interlocked.Increment(ref _searchGeneration);
         
+        // La liste va changer : une preview en vol porte sur un item qui ne sera
+        // peut-être plus affiché. L'annuler évite qu'elle s'affiche par-dessus les nouveaux résultats.
+        CancelPendingPreview();
         CurrentPreview = null;
         AvailableActions.Clear();
         // Amélioration #4 : capturer la référence settings une seule fois (cache mémoire pur)
@@ -305,7 +355,7 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         {
             // Les commandes async gèrent leur propre cycle Results.Clear → affichage
             Results.Clear();
-            _ = DispatchCommandAsync(handler, queryLower, generation, _searchCts.Token);
+            _ = DispatchCommandAsync(handler, queryLower, generation, token);
             return;
         }
         
@@ -357,11 +407,25 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
             }
         }
         
-        // Résultats de recherche normaux
-        var searchResults = _search.Search(SearchText);
-        foreach (var result in searchResults)
-            tempResults.Add(result);
-        
+        // Résultats de recherche normaux — le scoring (potentiellement coûteux sur un gros
+        // index) est exécuté hors du thread UI pour ne pas bloquer la saisie. La continuation
+        // reprend sur le thread UI (contexte capturé), donc SwapResults reste thread-safe.
+        var queryText = SearchText;
+        List<SearchResult> searchResults;
+        try
+        {
+            searchResults = await Task.Run(() => _search.Search(queryText, token), token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        // Une frappe plus récente a invalidé cette recherche → ignorer les résultats périmés
+        if (token.IsCancellationRequested || generation != _searchGeneration)
+            return;
+
+        tempResults.AddRange(searchResults);
         SwapResults(tempResults);
     }
     
@@ -520,7 +584,16 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     private void FinalizeResults()
     {
         HasResults = Results.Count > 0;
-        SelectedIndex = HasResults ? 0 : -1;
+
+        var newIndex = HasResults ? 0 : -1;
+        var indexUnchanged = SelectedIndex == newIndex;
+        SelectedIndex = newIndex;
+
+        // Réaffecter la même valeur n'émet aucune notification : sans ce rappel explicite,
+        // la preview et le panneau d'actions resteraient sur l'item de la recherche précédente.
+        if (indexUnchanged)
+            RefreshSelectionDependents(newIndex);
+
         UpdateGhostSuggestion();
     }
     
@@ -724,7 +797,12 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         var result = Results[SelectedIndex];
         if (result.Type is ResultType.Application or ResultType.Script or ResultType.File)
         {
-            _actions.RunAsAdmin(result);
+            if (!_actions.RunAsAdmin(result))
+            {
+                ShowNotification?.Invoke(this, $"❌ Impossible de lancer « {result.Name} » en administrateur");
+                return;
+            }
+
             _indexingService.RecordUsage(result);
             RequestHide?.Invoke(this, EventArgs.Empty);
         }
@@ -741,7 +819,9 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         
         if (ShowPreviewPanel && SelectedIndex >= 0 && SelectedIndex < Results.Count)
         {
-            _ = UpdatePreviewAsync(Results[SelectedIndex]);
+            CancelPendingPreview();
+            _previewCts = new CancellationTokenSource();
+            _ = UpdatePreviewAsync(Results[SelectedIndex], _previewCts.Token);
         }
     }
     
@@ -761,7 +841,17 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     
     private void LaunchItem(SearchResult item)
     {
-        // Enregistrer l'item cliqué dans l'historique via clone-swap (Point #2)
+        // Lancer AVANT d'enregistrer : un raccourci cassé ou une cible déplacée
+        // ne doit ni polluer l'historique, ni gonfler le compteur d'usage.
+        if (!_actions.Launch(item))
+        {
+            // Garder la fenêtre ouverte : le toast s'affiche dessus, et l'utilisateur
+            // peut corriger sa recherche au lieu de se demander pourquoi rien ne s'est passé.
+            ShowNotification?.Invoke(this, $"❌ Impossible de lancer « {item.Name} »");
+            return;
+        }
+
+        // Enregistrer l'item lancé dans l'historique via clone-swap (Point #2)
         if (_settings.Search.EnableSearchHistory && !string.IsNullOrWhiteSpace(item.Path))
         {
             var historyItem = new HistoryItem
@@ -774,9 +864,8 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
             };
             _settingsProvider.Update(s => s.Search.AddToSearchHistory(historyItem));
         }
-        
+
         _indexingService.RecordUsage(item);
-        _actions.Launch(item);
         RequestHide?.Invoke(this, EventArgs.Empty);
     }
     
@@ -956,7 +1045,7 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     public void ForceRefresh()
     {
         _debounceCts?.Cancel();
-        UpdateResultsInternal();
+        _ = UpdateResultsInternalAsync();
     }
     
     public void Dispose()
@@ -968,6 +1057,7 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         _debounceCts?.Dispose();
         _searchCts?.Cancel();
         _searchCts?.Dispose();
+        CancelPendingPreview();
         _fileWatcherService?.Dispose();
         _search?.Dispose();
         

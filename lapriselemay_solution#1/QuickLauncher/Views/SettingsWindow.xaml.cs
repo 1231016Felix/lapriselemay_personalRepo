@@ -218,7 +218,10 @@ public partial class SettingsWindow : Window
             ColorPreview.Background = new SolidColorBrush(
                 (Color)ColorConverter.ConvertFromString(color));
         }
-        catch { }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Settings] Couleur invalide '{color}': {ex.Message}");
+        }
     }
     
     private void UpdateAutoReindexOptionsVisibility()

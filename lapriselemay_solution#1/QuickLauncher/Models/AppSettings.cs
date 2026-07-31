@@ -141,7 +141,17 @@ public sealed class AppSettings
         {
             Directory.CreateDirectory(SettingsDir);
             var json = JsonSerializer.Serialize(this, JsonOptions);
-            File.WriteAllText(SettingsPath, json);
+
+            // Écriture atomique : écrire d'abord dans un fichier temporaire, puis remplacer
+            // la cible en une seule opération de renommage. Sur le même volume (NTFS), File.Move
+            // avec overwrite s'appuie sur MoveFileEx/REPLACE_EXISTING, qui est atomique :
+            // settings.json contient toujours soit l'ancienne version complète, soit la nouvelle,
+            // jamais un fichier tronqué. Évite la perte totale des réglages (épingles, historique,
+            // clé API) si l'application est interrompue en plein milieu de l'écriture.
+            var tempPath = SettingsPath + ".tmp";
+            File.WriteAllText(tempPath, json);
+            File.Move(tempPath, SettingsPath, overwrite: true);
+
             System.Diagnostics.Debug.WriteLine($"[Settings] Sauvegardé avec {Search.PinnedItems.Count} épingles");
         }
         catch (Exception ex)

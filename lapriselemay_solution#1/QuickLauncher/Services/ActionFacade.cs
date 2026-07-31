@@ -73,10 +73,12 @@ public sealed class ActionFacade
     // === ILaunchService ===
 
     /// <summary>Lance un item (application, fichier, URL, etc.).</summary>
-    public void Launch(SearchResult item) => _launchService.Launch(item);
+    /// <returns>false si le lancement a échoué (l'échec est déjà journalisé).</returns>
+    public bool Launch(SearchResult item) => _launchService.Launch(item);
 
     /// <summary>Lance un item en mode administrateur (élévation UAC).</summary>
-    public void RunAsAdmin(SearchResult item) => _launchService.RunAsAdmin(item);
+    /// <returns>false si le lancement a échoué (l'échec est déjà journalisé).</returns>
+    public bool RunAsAdmin(SearchResult item) => _launchService.RunAsAdmin(item);
 
     // === IFileActionProvider ===
 

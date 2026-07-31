@@ -26,7 +26,7 @@ public sealed class SearchService
     /// <summary>
     /// Recherche des résultats dans le cache indexé.
     /// </summary>
-    public List<SearchResult> Search(string query)
+    public List<SearchResult> Search(string query, CancellationToken token = default)
     {
         if (string.IsNullOrWhiteSpace(query))
             return [];
@@ -77,6 +77,7 @@ public sealed class SearchService
         var scored = cachedItems.Count > ParallelThreshold
             ? cachedItems.Values
                 .AsParallel()
+                .WithCancellation(token)
                 .Select(item => (Item: item, Score: CalculateScore(normalizedQuery, item)))
                 .Where(x => x.Score > 0)
             : cachedItems.Values
@@ -97,10 +98,16 @@ public sealed class SearchService
                 .ThenByDescending(x => x.Item.UseCount)
                 .First())
             .Take(settings.Search.MaxResults)
+            // Cloner avant de renvoyer : les items viennent du cache d'indexation, qui vit
+            // aussi longtemps que l'application. Muter Score dessus (depuis PLINQ) ou y laisser
+            // l'UI accrocher NativeIcon revient à partager de l'état mutable entre l'index et
+            // le thread UI, et à retenir chaque icône affichée pour toute la session.
+            // Le coût est borné : au plus MaxResults clones (3 à 15) par recherche.
             .Select(x =>
             {
-                x.Item.Score = x.Score;
-                return x.Item;
+                var hit = x.Item.Clone();
+                hit.Score = x.Score;
+                return hit;
             })
             .ToList();
     }
@@ -132,7 +139,8 @@ public sealed class SearchService
         // Score principal sur le nom
         var nameScore = SearchAlgorithms.CalculateFuzzyScore(
             query, item.Name, item.UseCount, item.LastUsed, weights,
-            userAbbreviations.Count > 0 ? userAbbreviations : null);
+            userAbbreviations.Count > 0 ? userAbbreviations : null,
+            item.NormalizedName);
 
         // Score additionnel sur le chemin complet (pour les requêtes multi-mots)
         if (weights.EnablePathFuzzyMatch && !string.IsNullOrEmpty(item.Path))

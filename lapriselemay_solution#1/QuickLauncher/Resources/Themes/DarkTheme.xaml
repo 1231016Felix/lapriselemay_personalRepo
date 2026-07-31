@@ -7,9 +7,10 @@
     <SolidColorBrush x:Key="SurfaceAltBrush" Color="#252525"/>
     <SolidColorBrush x:Key="BorderBrush" Color="#3E3E3E"/>
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FFFFFF"/>
-    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#888888"/>
-    <SolidColorBrush x:Key="TextTertiaryBrush" Color="#666666"/>
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#A6A6A6"/>
+    <SolidColorBrush x:Key="TextTertiaryBrush" Color="#8A8A8A"/>
     <SolidColorBrush x:Key="HoverBrush" Color="#3E3E3E"/>
+    <SolidColorBrush x:Key="SelectionBrush" Color="#440078D4"/>
     <SolidColorBrush x:Key="CodeBackgroundBrush" Color="#1A1A1A"/>
 
 </ResourceDictionary>

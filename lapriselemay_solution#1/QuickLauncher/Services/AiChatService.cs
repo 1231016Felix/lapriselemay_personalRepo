@@ -26,6 +26,7 @@ public sealed class AiChatService : IDisposable
     // Cache multi-entrées pour éviter les appels répétés identiques.
     // Capacité limitée à 10 entrées (les plus anciennes sont évincées).
     private readonly Dictionary<string, (AiChatResult Result, DateTime CachedAt)> _cache = new();
+    private readonly object _cacheLock = new();
     private const int MaxCacheEntries = 10;
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
 
@@ -63,12 +64,15 @@ public sealed class AiChatService : IDisposable
         if (string.IsNullOrWhiteSpace(question))
             return null;
 
-        // Vérifier le cache
+        // Vérifier le cache (verrouillé : AskAsync peut être appelé en parallèle)
         var cacheKey = $"{question.ToLowerInvariant()}_{model}_{providerId}";
-        if (_cache.TryGetValue(cacheKey, out var cached) &&
-            DateTime.Now - cached.CachedAt < CacheDuration)
+        lock (_cacheLock)
         {
-            return cached.Result;
+            if (_cache.TryGetValue(cacheKey, out var cached) &&
+                DateTime.Now - cached.CachedAt < CacheDuration)
+            {
+                return cached.Result;
+            }
         }
 
         try
@@ -103,12 +107,15 @@ public sealed class AiChatService : IDisposable
             };
 
             // Mettre en cache (évincer les entrées les plus anciennes si capacité atteinte)
-            if (_cache.Count >= MaxCacheEntries)
+            lock (_cacheLock)
             {
-                var oldest = _cache.MinBy(kv => kv.Value.CachedAt).Key;
-                _cache.Remove(oldest);
+                if (_cache.Count >= MaxCacheEntries)
+                {
+                    var oldest = _cache.MinBy(kv => kv.Value.CachedAt).Key;
+                    _cache.Remove(oldest);
+                }
+                _cache[cacheKey] = (result, DateTime.Now);
             }
-            _cache[cacheKey] = (result, DateTime.Now);
             return result;
         }
         catch (TaskCanceledException)

@@ -34,35 +34,46 @@
         <converters:AlternationToShortcutConverter x:Key="AltShortcut"/>
         <converters:AlternationToShortcutVisibilityConverter x:Key="AltShortcutVis"/>
         
+        <!-- Barre de chargement fine (indicateur de commande async) -->
+        <Style x:Key="ThinAccentProgressBar" TargetType="ProgressBar">
+            <Setter Property="Height" Value="2"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+        </Style>
+
         <!-- Style bouton clear discret -->
         <Style x:Key="ClearButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Foreground" Value="#555"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="12"/>
             <Setter Property="Padding" Value="6,4"/>
             <Setter Property="ToolTip" Value="Effacer la recherche"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Foreground" Value="#AAA"/>
+                    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
-        
+
         <!-- Style bouton settings discret -->
         <Style x:Key="SettingsButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Foreground" Value="#666"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="15"/>
             <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="ToolTip" Value="Paramètres (Ctrl+,)"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Foreground" Value="#AAA"/>
+                    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -213,95 +224,116 @@
             </Grid.RowDefinitions>
             
             <!-- Barre de recherche -->
-            <Border Grid.Row="0" 
-                    Background="{DynamicResource SurfaceBrush}" 
+            <Border Grid.Row="0"
+                    Background="{DynamicResource SurfaceBrush}"
                     CornerRadius="12,12,0,0"
-                    Padding="16">
+                    Padding="16,16,16,0">
                 <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/> <!-- Tab hint -->
-                        <ColumnDefinition Width="Auto"/> <!-- Clear button -->
-                        <ColumnDefinition Width="Auto"/> <!-- Settings button -->
-                    </Grid.ColumnDefinitions>
-                    
-                    <!-- Icône recherche / indicateur de chargement -->
-                    <TextBlock Grid.Column="0"
-                               FontSize="20"
-                               VerticalAlignment="Center"
-                               Margin="0,0,12,0">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Text" Value="🔍"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsSearching}" Value="True">
-                                        <Setter Property="Text" Value="⏳"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    
-                    <!-- Ghost suggestion (behind the real text) -->
-                    <TextBlock x:Name="GhostText"
-                               Grid.Column="1"
-                               Text="{Binding GhostSuggestionText}"
-                               FontSize="18"
-                               FontFamily="{Binding FontFamily, ElementName=SearchBox}"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
-                               Opacity="0.4"
-                               Background="Transparent"
-                               IsHitTestVisible="False"
-                               VerticalAlignment="Center"
-                               Padding="2,0,0,0"/>
-                    
-                    <TextBox x:Name="SearchBox"
-                             Grid.Column="1"
-                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                             FontSize="18"
-                             Foreground="{DynamicResource TextPrimaryBrush}"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             CaretBrush="{DynamicResource TextPrimaryBrush}"
-                             VerticalAlignment="Center"/>
-                    
-                    <!-- Tab hint (visible seulement quand ghost suggestion est affichée) -->
-                    <TextBlock Grid.Column="2"
-                               Text="Tab ⭾"
-                               FontSize="10"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
-                               Opacity="0.5"
-                               VerticalAlignment="Center"
-                               Margin="4,0,4,0"
-                               IsHitTestVisible="False">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding GhostSuggestionText, Converter={StaticResource NullToVis}}" Value="Visible">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    
-                    <!-- Bouton Clear -->
-                    <Button x:Name="ClearButton"
-                            Grid.Column="3"
-                            Content="✕"
-                            Style="{StaticResource ClearButtonStyle}"
-                            Click="ClearButton_Click"
-                            Visibility="Collapsed"/>
-                    
-                    <!-- Bouton Settings discret -->
-                    <Button x:Name="SettingsButton"
-                            Grid.Column="4"
-                            Content="⚙️"
-                            Style="{StaticResource SettingsButtonStyle}"
-                            Click="SettingsButton_Click"
-                            Visibility="{Binding ShowSettingsButton, FallbackValue=Visible}"/>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/> <!-- Tab hint -->
+                            <ColumnDefinition Width="Auto"/> <!-- Clear button -->
+                            <ColumnDefinition Width="Auto"/> <!-- Settings button -->
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Icône recherche (glyphe vectoriel Segoe MDL2) -->
+                        <TextBlock Grid.Column="0"
+                                   Text="&#xE721;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="16"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="2,0,14,0"/>
+
+                        <!-- Ghost suggestion (behind the real text) -->
+                        <TextBlock x:Name="GhostText"
+                                   Grid.Column="1"
+                                   Text="{Binding GhostSuggestionText}"
+                                   FontSize="18"
+                                   FontFamily="{Binding FontFamily, ElementName=SearchBox}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Opacity="0.4"
+                                   Background="Transparent"
+                                   IsHitTestVisible="False"
+                                   VerticalAlignment="Center"
+                                   Padding="2,0,0,0"/>
+
+                        <TextBox x:Name="SearchBox"
+                                 Grid.Column="1"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 FontSize="18"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 CaretBrush="{DynamicResource TextPrimaryBrush}"
+                                 VerticalAlignment="Center"/>
+
+                        <!-- Tab hint (visible seulement quand ghost suggestion est affichée) -->
+                        <Border Grid.Column="2"
+                                Background="{DynamicResource HoverBrush}"
+                                CornerRadius="3"
+                                Padding="6,2"
+                                Margin="4,0,6,0"
+                                VerticalAlignment="Center"
+                                IsHitTestVisible="False">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding GhostSuggestionText, Converter={StaticResource NullToVis}}" Value="Visible">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock Text="Tab"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextTertiaryBrush}"/>
+                        </Border>
+
+                        <!-- Bouton Clear (glyphe Segoe MDL2) -->
+                        <Button x:Name="ClearButton"
+                                Grid.Column="3"
+                                Content="&#xE711;"
+                                Style="{StaticResource ClearButtonStyle}"
+                                Click="ClearButton_Click"
+                                Visibility="Collapsed"/>
+
+                        <!-- Bouton Settings (glyphe Segoe MDL2) -->
+                        <Button x:Name="SettingsButton"
+                                Grid.Column="4"
+                                Content="&#xE713;"
+                                Style="{StaticResource SettingsButtonStyle}"
+                                Click="SettingsButton_Click"
+                                Visibility="{Binding ShowSettingsButton, FallbackValue=Visible}"/>
+                    </Grid>
+
+                    <!-- Liseré bas : accent quand le champ a le focus + barre de chargement async -->
+                    <Grid Grid.Row="1" Height="2" Margin="0,12,0,0">
+                        <Border>
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="{DynamicResource BorderBrush}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=SearchBox}" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                        </Border>
+                        <ProgressBar IsIndeterminate="True"
+                                     Style="{StaticResource ThinAccentProgressBar}"
+                                     Visibility="{Binding IsSearching, Converter={StaticResource BoolToVis}}"/>
+                    </Grid>
                 </Grid>
             </Border>
             
@@ -359,11 +391,23 @@
                                                 Background="{TemplateBinding Background}"
                                                 CornerRadius="8"
                                                 Padding="{TemplateBinding Padding}">
-                                            <ContentPresenter/>
+                                            <Grid>
+                                                <!-- Barre d'accent latérale (visible quand sélectionné) -->
+                                                <Border x:Name="SelBar"
+                                                        Width="3"
+                                                        CornerRadius="1.5"
+                                                        HorizontalAlignment="Left"
+                                                        VerticalAlignment="Stretch"
+                                                        Margin="-8,3,0,3"
+                                                        Background="{DynamicResource AccentBrush}"
+                                                        Visibility="Hidden"/>
+                                                <ContentPresenter/>
+                                            </Grid>
                                         </Border>
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsSelected" Value="True">
-                                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentBrush}"/>
+                                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SelectionBrush}"/>
+                                                <Setter TargetName="SelBar" Property="Visibility" Value="Visible"/>
                                             </Trigger>
                                             <Trigger Property="IsMouseOver" Value="True">
                                                 <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBrush}"/>
@@ -407,11 +451,13 @@
                                     </Image.Style>
                                 </Image>
                                 
-                                <!-- Icône emoji (fallback) -->
+                                <!-- Icône emoji (fallback) — largeur fixe pour aligner les noms -->
                                 <TextBlock Grid.Column="0"
                                            Text="{Binding DisplayIcon}"
                                            FontFamily="Segoe UI Emoji"
-                                           FontSize="24"
+                                           FontSize="22"
+                                           Width="32"
+                                           TextAlignment="Center"
                                            VerticalAlignment="Center"
                                            Margin="0,0,12,0">
                                     <TextBlock.Style>
@@ -493,21 +539,16 @@
                                                    FontSize="9"
                                                    Foreground="{DynamicResource TextTertiaryBrush}"/>
                                     </Border>
-                                    <!-- Tab / Clic droit pour menu contextuel -->
+                                    <!-- Enter pour ouvrir -->
                                     <Border Background="{DynamicResource HoverBrush}"
                                             CornerRadius="3"
-                                            Padding="4,2"
-                                            Margin="0,0,4,0"
-                                            ToolTip="Tab ou clic droit pour plus d'actions">
-                                        <TextBlock Text="Tab / Clic droit"
-                                                   FontSize="9"
-                                                   Foreground="{DynamicResource TextTertiaryBrush}"/>
+                                            Padding="5,2"
+                                            VerticalAlignment="Center"
+                                            ToolTip="Entrée pour ouvrir · Tab ou clic droit pour plus d'actions">
+                                        <TextBlock Text="↵"
+                                                   FontSize="10"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
                                     </Border>
-                                    <!-- Enter pour ouvrir -->
-                                    <TextBlock Text="↵"
-                                               FontSize="10"
-                                               Foreground="{DynamicResource TextTertiaryBrush}"
-                                               VerticalAlignment="Center"/>
                                 </StackPanel>
                                 
                                 <!-- Raccourci Alt+N -->
@@ -548,7 +589,7 @@
                 <!-- Hint en bas quand pas de résultats -->
                 <TextBlock
                            Text="Tapez ':help' pour voir les commandes disponibles&#x0a;Utilisez ':find &lt;terme&gt;' pour rechercher dans tout le système"
-                           Foreground="#555"
+                           Foreground="{DynamicResource TextTertiaryBrush}"
                            FontSize="11"
                            HorizontalAlignment="Center"
                            TextAlignment="Center"
@@ -566,19 +607,19 @@
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{Binding Results.Count, StringFormat='{}{0} résultat(s)'}"
                                    FontSize="10"
-                                   Foreground="#666"/>
+                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
                         <TextBlock Text=" • "
                                    FontSize="10"
-                                   Foreground="#444"/>
-                        <TextBlock FontSize="10" Foreground="#666">
+                                   Foreground="{DynamicResource TextTertiaryBrush}"/>
+                        <TextBlock FontSize="10" Foreground="{DynamicResource TextTertiaryBrush}">
                             <Run Text="Enter"/>
-                            <Run Text="Ouvrir" Foreground="#888"/>
+                            <Run Text="Ouvrir" Foreground="{DynamicResource TextSecondaryBrush}"/>
                             <Run Text=" │ "/>
                             <Run Text="Tab/Clic droit"/>
-                            <Run Text="Actions" Foreground="#888"/>
+                            <Run Text="Actions" Foreground="{DynamicResource TextSecondaryBrush}"/>
                             <Run Text=" │ "/>
                             <Run Text="Ctrl+Enter"/>
-                            <Run Text="Admin" Foreground="#888"/>
+                            <Run Text="Admin" Foreground="{DynamicResource TextSecondaryBrush}"/>
                         </TextBlock>
                     </StackPanel>
                     
@@ -586,12 +627,15 @@
                     <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Right"
                                 Visibility="{Binding IsIndexing, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Text="⏳"
+                        <TextBlock Text="&#xE895;"
+                                   FontFamily="Segoe MDL2 Assets"
                                    FontSize="10"
-                                   Margin="0,0,4,0"/>
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,5,0"/>
                         <TextBlock Text="Indexation..."
                                    FontSize="10"
-                                   Foreground="#888"/>
+                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
                     </StackPanel>
                 </Grid>
             </Border>

@@ -41,7 +41,27 @@ public sealed class SearchResult : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
     
-    public string Name { get; set; } = string.Empty;
+    private string _name = string.Empty;
+    private string? _normalizedName;
+
+    public string Name
+    {
+        get => _name;
+        set
+        {
+            _name = value;
+            _normalizedName = null; // invalider le cache de normalisation
+        }
+    }
+
+    /// <summary>
+    /// Nom normalisé pour le fuzzy matching (emojis retirés + minuscules), calculé une
+    /// seule fois puis mis en cache. Évite de refaire StripEmojis + ToLowerInvariant pour
+    /// chaque item à chaque frappe dans le chemin chaud de la recherche.
+    /// </summary>
+    public string NormalizedName =>
+        _normalizedName ??= Services.SearchAlgorithms.StripEmojis(_name).ToLowerInvariant();
+
     public string Path { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public ResultType Type { get; set; }
@@ -87,6 +107,43 @@ public sealed class SearchResult : INotifyPropertyChanged
         set => _customIcon = value;
     }
     
+    /// <summary>
+    /// Crée une copie détachée de ce résultat, destinée à l'affichage.
+    ///
+    /// <b>Pourquoi c'est nécessaire :</b> les objets du cache d'indexation vivent aussi
+    /// longtemps que l'application. Si l'UI leur attachait directement <see cref="NativeIcon"/>,
+    /// chaque icône affichée resterait référencée à vie par le cache d'index (non borné),
+    /// ce qui contourne les plafonds de 500 entrées de IconCacheService et IconExtractorService.
+    /// Le clone est jeté au changement de recherche, donc l'icône redevient collectable.
+    ///
+    /// Cela isole aussi le cache des écritures concurrentes de <see cref="Score"/>
+    /// faites par le scoring PLINQ pendant que le thread UI lit la collection.
+    ///
+    /// <see cref="NativeIcon"/> n'est volontairement PAS copié : il est rechargé depuis
+    /// les caches d'icônes (accès dictionnaire) par <see cref="Services.IIconLoader"/>.
+    /// </summary>
+    public SearchResult Clone()
+    {
+        var clone = new SearchResult
+        {
+            Path = Path,
+            Description = Description,
+            Type = Type,
+            IsInfoBlock = IsInfoBlock,
+            Score = Score,
+            LastUsed = LastUsed,
+            UseCount = UseCount
+        };
+
+        // Champs privés copiés directement pour préserver le cache de normalisation
+        // et ne pas matérialiser l'emoji par défaut dans _customIcon.
+        clone._name = _name;
+        clone._normalizedName = _normalizedName;
+        clone._customIcon = _customIcon;
+
+        return clone;
+    }
+
     private string GetDefaultIcon() => Type switch
     {
         ResultType.Application => "🚀",

@@ -100,10 +100,11 @@ public sealed class FileWatcherService : IDisposable
         {
             var watcher = new FileSystemWatcher(folderPath)
             {
-                NotifyFilter = NotifyFilters.FileName 
-                    | NotifyFilters.DirectoryName 
-                    | NotifyFilters.LastWrite
-                    | NotifyFilters.CreationTime,
+                // Seuls les changements de nom (création / suppression / renommage) modifient
+                // l'index. On n'écoute pas LastWrite/CreationTime : leur événement Changed était
+                // déjà ignoré, et les inclure ne faisait qu'augmenter le risque de débordement
+                // du buffer interne sur de grosses arborescences (ex: Documents).
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName,
                 IncludeSubdirectories = true,
                 EnableRaisingEvents = true
             };
@@ -115,7 +116,6 @@ public sealed class FileWatcherService : IDisposable
             watcher.Created += OnFileCreated;
             watcher.Deleted += OnFileDeleted;
             watcher.Renamed += OnFileRenamed;
-            watcher.Changed += OnFileChanged;
             watcher.Error += OnWatcherError;
 
             _watchers[folderPath] = watcher;
@@ -152,12 +152,6 @@ public sealed class FileWatcherService : IDisposable
         {
             EnqueueChange(FileChangeType.Created, e.FullPath);
         }
-    }
-
-    private void OnFileChanged(object sender, FileSystemEventArgs e)
-    {
-        // On ignore les modifications de contenu pour l'indexation
-        // (seules les créations/suppressions nous intéressent)
     }
 
     private void OnWatcherError(object sender, ErrorEventArgs e)

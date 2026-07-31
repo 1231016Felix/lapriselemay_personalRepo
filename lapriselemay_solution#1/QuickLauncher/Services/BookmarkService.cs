@@ -80,8 +80,11 @@ public class BookmarkService : IBookmarkService
                     bookmarkFiles.Add(bookmarksPath);
             }
         }
-        catch { }
-        
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BookmarkService] Erreur énumération profils '{userDataPath}': {ex.Message}");
+        }
+
         return bookmarkFiles;
     }
     

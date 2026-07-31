@@ -267,17 +267,19 @@ public static class SearchAlgorithms
     /// Le fuzzy per-word est le cœur de la tolérance aux typos.
     /// </summary>
     public static int CalculateFuzzyScore(string query, string target, int useCount, DateTime? lastUsed,
-        ScoringWeights weights, Dictionary<string, string[]>? userAbbreviations = null)
+        ScoringWeights weights, Dictionary<string, string[]>? userAbbreviations = null,
+        string? targetNormalized = null)
     {
         if (string.IsNullOrEmpty(query) || string.IsNullOrEmpty(target))
             return 0;
-        
+
         weights ??= DefaultWeights;
 
         var queryLower = query.ToLowerInvariant();
         // Strip les emojis du nom pour ne pas polluer le fuzzy matching
         // Ex: "⚙️ Paramètres Windows" → "paramètres windows"
-        var targetLower = StripEmojis(target).ToLowerInvariant();
+        // targetNormalized (précalculé sur SearchResult) évite de refaire ce travail à chaque frappe.
+        var targetLower = targetNormalized ?? StripEmojis(target).ToLowerInvariant();
 
         int score = 0;
         

@@ -201,7 +201,17 @@ public sealed class ResultActionService
     /// </summary>
     private ActionOutcome ExecuteRunAsAdmin(SearchResult result)
     {
-        _launchService.RunAsAdmin(result);
+        if (!_launchService.RunAsAdmin(result))
+        {
+            // Échec : garder la fenêtre ouverte pour que le toast soit visible,
+            // et ne pas comptabiliser un usage qui n'a pas eu lieu.
+            return new ActionOutcome
+            {
+                Notification = $"❌ Impossible de lancer « {result.Name} » en administrateur",
+                CloseActionsPanel = true
+            };
+        }
+
         return new ActionOutcome
         {
             ShouldHide = true,

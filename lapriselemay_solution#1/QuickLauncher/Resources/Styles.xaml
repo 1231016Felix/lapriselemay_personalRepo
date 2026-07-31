@@ -11,9 +11,10 @@
     <Color x:Key="DarkSurfaceAltColor">#252525</Color>
     <Color x:Key="DarkBorderColor">#3E3E3E</Color>
     <Color x:Key="DarkTextPrimaryColor">#FFFFFF</Color>
-    <Color x:Key="DarkTextSecondaryColor">#888888</Color>
-    <Color x:Key="DarkTextTertiaryColor">#666666</Color>
+    <Color x:Key="DarkTextSecondaryColor">#A6A6A6</Color>
+    <Color x:Key="DarkTextTertiaryColor">#8A8A8A</Color>
     <Color x:Key="DarkHoverColor">#3E3E3E</Color>
+    <Color x:Key="DarkSelectionColor">#440078D4</Color>
     <Color x:Key="DarkCodeBackgroundColor">#1A1A1A</Color>
     
     <!-- ============================================ -->
@@ -26,9 +27,10 @@
     <Color x:Key="LightSurfaceAltColor">#EBEBEB</Color>
     <Color x:Key="LightBorderColor">#E0E0E0</Color>
     <Color x:Key="LightTextPrimaryColor">#1E1E1E</Color>
-    <Color x:Key="LightTextSecondaryColor">#666666</Color>
-    <Color x:Key="LightTextTertiaryColor">#999999</Color>
+    <Color x:Key="LightTextSecondaryColor">#5E5E5E</Color>
+    <Color x:Key="LightTextTertiaryColor">#767676</Color>
     <Color x:Key="LightHoverColor">#E8E8E8</Color>
+    <Color x:Key="LightSelectionColor">#260078D4</Color>
     <Color x:Key="LightCodeBackgroundColor">#F8F8F8</Color>
     
     <!-- ============================================ -->
@@ -55,6 +57,7 @@
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource DarkTextSecondaryColor}"/>
     <SolidColorBrush x:Key="TextTertiaryBrush" Color="{StaticResource DarkTextTertiaryColor}"/>
     <SolidColorBrush x:Key="HoverBrush" Color="{StaticResource DarkHoverColor}"/>
+    <SolidColorBrush x:Key="SelectionBrush" Color="{StaticResource DarkSelectionColor}"/>
     <SolidColorBrush x:Key="CodeBackgroundBrush" Color="{StaticResource DarkCodeBackgroundColor}"/>
     
     <!-- Accent (ne change pas) -->

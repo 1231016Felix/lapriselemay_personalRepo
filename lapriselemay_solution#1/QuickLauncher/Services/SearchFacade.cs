@@ -40,7 +40,8 @@ public sealed class SearchFacade : IDisposable
     /// <summary>
     /// Recherche des résultats dans le cache indexé (scoring, filtrage, déduplication).
     /// </summary>
-    public List<SearchResult> Search(string query) => _searchService.Search(query);
+    public List<SearchResult> Search(string query, CancellationToken token = default)
+        => _searchService.Search(query, token);
 
     // === GhostSuggestionService ===
 

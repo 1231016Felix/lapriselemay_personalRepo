@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
@@ -84,7 +85,7 @@ public sealed partial class IndexingService : IDisposable
         _persistentConnection.Open();
         using (var pragmaCmd = _persistentConnection.CreateCommand())
         {
-            pragmaCmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;";
+            pragmaCmd.CommandText = $"PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout={BusyTimeoutMs};";
             pragmaCmd.ExecuteNonQuery();
         }
         
@@ -118,6 +119,24 @@ public sealed partial class IndexingService : IDisposable
         cmd.ExecuteNonQuery();
     }
     
+    /// <summary>
+    /// Délai d'attente (ms) avant qu'une connexion abandonne sur un verrou SQLite.
+    /// </summary>
+    private const int BusyTimeoutMs = 3000;
+
+    /// <summary>
+    /// Applique le busy_timeout sur une connexion fraîchement ouverte. Évite les erreurs
+    /// SQLITE_BUSY quand une connexion éphémère (réindexation) et la connexion persistante
+    /// (RecordUsage / FileWatcher) tentent d'écrire en même temps en mode WAL : au lieu
+    /// d'échouer immédiatement, le second writer patiente jusqu'à BusyTimeoutMs.
+    /// </summary>
+    private static void ApplyBusyTimeout(SqliteConnection conn)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"PRAGMA busy_timeout={BusyTimeoutMs};";
+        cmd.ExecuteNonQuery();
+    }
+
     private void LoadCacheFromDatabase()
     {
         _cache.Clear();
@@ -136,7 +155,9 @@ public sealed partial class IndexingService : IDisposable
                     Name = reader.GetString(1),
                     Description = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
                     Type = (ResultType)reader.GetInt32(3),
-                    LastUsed = reader.IsDBNull(4) ? DateTime.MinValue : DateTime.Parse(reader.GetString(4)),
+                    LastUsed = reader.IsDBNull(4)
+                        ? DateTime.MinValue
+                        : DateTime.Parse(reader.GetString(4), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
                     UseCount = reader.GetInt32(5)
                 };
                 _cache[item.Path] = item;
@@ -342,7 +363,8 @@ public sealed partial class IndexingService : IDisposable
     {
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync(token);
-        
+        ApplyBusyTimeout(conn);
+
         await using var transaction = conn.BeginTransaction();
         try
         {
@@ -394,20 +416,35 @@ public sealed partial class IndexingService : IDisposable
     public async Task ReindexAsync(CancellationToken cancellationToken = default)
     {
         CancelIndexing();
-        
-        // Vider la table via la connexion persistante (opération rapide)
-        lock (_dbLock)
+
+        // L'annulation est COOPÉRATIVE : CancelIndexing() ne fait que lever le drapeau.
+        // Une passe en cours peut encore être dans SaveToDatabaseAsync en train de committer
+        // sa transaction. Purger la table sans attendre laisserait survivre les lignes
+        // écrites après le DELETE — l'index se retrouve avec des entrées fantômes
+        // (fichiers supprimés toujours proposés) ou incomplet.
+        // Prendre _indexLock garantit que la passe précédente est réellement terminée.
+        await _indexLock.WaitAsync(cancellationToken);
+        try
         {
-            using var cmd = _persistentConnection.CreateCommand();
-            cmd.CommandText = "DELETE FROM Items";
-            cmd.ExecuteNonQuery();
+            // Vider la table via la connexion persistante (opération rapide)
+            lock (_dbLock)
+            {
+                using var cmd = _persistentConnection.CreateCommand();
+                cmd.CommandText = "DELETE FROM Items";
+                cmd.ExecuteNonQuery();
+            }
+
+            _cache.Clear();
+
+            // Purger le cache de distances fuzzy pour éviter l'accumulation d'entrées périmées
+            SearchAlgorithms.ClearCache();
         }
-        
-        _cache.Clear();
-        
-        // Purger le cache de distances fuzzy pour éviter l'accumulation d'entrées périmées
-        SearchAlgorithms.ClearCache();
-        
+        finally
+        {
+            // Libérer avant StartIndexingAsync, qui reprend le verrou lui-même.
+            _indexLock.Release();
+        }
+
         await StartIndexingAsync(cancellationToken);
     }
     
@@ -664,25 +701,38 @@ public sealed partial class IndexingService : IDisposable
     private void RemoveItemsByFolder(string folderPath)
     {
         var normalizedFolder = folderPath.TrimEnd('\\', '/');
+        // Préfixe avec séparateur final : un dossier ne « contient » que les chemins
+        // qui commencent par "<dossier>\". Sans le séparateur, supprimer "C:\Data"
+        // évincerait aussi les items du dossier frère "C:\Database".
+        var childPrefix = normalizedFolder + "\\";
         var keysToRemove = _cache.Keys
-            .Where(k => k.StartsWith(normalizedFolder, StringComparison.OrdinalIgnoreCase))
+            .Where(k => k.Equals(normalizedFolder, StringComparison.OrdinalIgnoreCase)
+                     || k.StartsWith(childPrefix, StringComparison.OrdinalIgnoreCase))
             .ToList();
-        
+
         foreach (var key in keysToRemove)
         {
             _cache.TryRemove(key, out _);
         }
-        
+
         if (keysToRemove.Count > 0)
         {
             try
             {
+                // Échapper les jokers LIKE (% et _) légaux dans un nom de dossier Windows.
+                // '|' est interdit dans un chemin Windows → caractère d'échappement sûr.
+                var likePrefix = childPrefix
+                    .Replace("|", "||")
+                    .Replace("%", "|%")
+                    .Replace("_", "|_");
+
                 // Amélioration #2 : connexion persistante
                 lock (_dbLock)
                 {
                     using var cmd = _persistentConnection.CreateCommand();
-                    cmd.CommandText = "DELETE FROM Items WHERE Path LIKE @prefix";
-                    cmd.Parameters.AddWithValue("@prefix", normalizedFolder + "%");
+                    cmd.CommandText = "DELETE FROM Items WHERE Path = @exact OR Path LIKE @prefix ESCAPE '|'";
+                    cmd.Parameters.AddWithValue("@exact", normalizedFolder);
+                    cmd.Parameters.AddWithValue("@prefix", likePrefix + "%");
                     var deleted = cmd.ExecuteNonQuery();
                     _logger.Info($"[SmartIndex] Supprimé {deleted} items de '{Path.GetFileName(normalizedFolder)}'");
                 }
@@ -748,7 +798,8 @@ public sealed partial class IndexingService : IDisposable
             {
                 await using var conn = new SqliteConnection(_connectionString);
                 await conn.OpenAsync(token);
-                
+                ApplyBusyTimeout(conn);
+
                 // SQLite ne supporte pas les paramètres de tableau, on construit la requête
                 await using var deleteCmd = conn.CreateCommand();
                 var paramNames = new List<string>(stalePaths.Count);

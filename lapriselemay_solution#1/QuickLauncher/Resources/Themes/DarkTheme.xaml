@@ -10,7 +10,10 @@
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="#A6A6A6"/>
     <SolidColorBrush x:Key="TextTertiaryBrush" Color="#8A8A8A"/>
     <SolidColorBrush x:Key="HoverBrush" Color="#3E3E3E"/>
-    <SolidColorBrush x:Key="SelectionBrush" Color="#440078D4"/>
+    <!-- Alpha remonté de 0x44 à 0x66 : à 0x44 la ligne sélectionnée n'était qu'à
+         1.33:1 du fond, toute la lisibilité reposant sur la barre d'accent de 3px.
+         Régénéré depuis la couleur d'accent par ThemeService.ApplyAccentColor. -->
+    <SolidColorBrush x:Key="SelectionBrush" Color="#660078D4"/>
     <SolidColorBrush x:Key="CodeBackgroundBrush" Color="#1A1A1A"/>
 
 </ResourceDictionary>

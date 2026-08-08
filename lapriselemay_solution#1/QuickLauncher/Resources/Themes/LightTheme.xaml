@@ -10,7 +10,11 @@
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="#5E5E5E"/>
     <SolidColorBrush x:Key="TextTertiaryBrush" Color="#767676"/>
     <SolidColorBrush x:Key="HoverBrush" Color="#E8E8E8"/>
-    <SolidColorBrush x:Key="SelectionBrush" Color="#260078D4"/>
+    <!-- Alpha remonté de 0x26 à 0x4D : à 0x26 la ligne sélectionnée n'était qu'à
+         1.22:1 du fond blanc, quasi imperceptible. 0x4D donne 1.52:1, soit le même
+         poids visuel que le thème sombre (1.59:1), tout en laissant le texte
+         principal à 10.9:1. Régénéré depuis l'accent par ThemeService.ApplyAccentColor. -->
+    <SolidColorBrush x:Key="SelectionBrush" Color="#4D0078D4"/>
     <SolidColorBrush x:Key="CodeBackgroundBrush" Color="#F8F8F8"/>
 
 </ResourceDictionary>

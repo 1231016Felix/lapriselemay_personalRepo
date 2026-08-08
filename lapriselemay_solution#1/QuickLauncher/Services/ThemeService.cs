@@ -89,6 +89,15 @@ public class ThemeService : IThemeService, IDisposable
             app.Resources["AccentHoverColor"] = hoverColor;
             app.Resources["AccentPressedColor"] = pressedColor;
             app.Resources["AccentHoverBrush"] = new SolidColorBrush(hoverColor);
+
+            // La surbrillance de la ligne sélectionnée est l'accent en transparence.
+            // Sans cette ligne elle restait bleue même après le choix d'un autre accent,
+            // car SelectionBrush vient du dictionnaire de thème et n'était jamais régénéré.
+            // Le fond clair sature plus vite que le sombre : 0x4D sur blanc et 0x66 sur
+            // noir donnent un poids visuel équivalent (~1.5:1 contre le fond dans les deux cas).
+            var selectionAlpha = _currentTheme == "Light" ? (byte)0x4D : (byte)0x66;
+            app.Resources["SelectionBrush"] =
+                new SolidColorBrush(WpfColor.FromArgb(selectionAlpha, color.R, color.G, color.B));
         }
         catch
         {
@@ -193,6 +202,14 @@ public class ThemeService : IThemeService, IDisposable
                 app.Resources.MergedDictionaries.Remove(existingTheme);
 
             app.Resources.MergedDictionaries.Add(themeDict);
+
+            // Le nouveau dictionnaire réintroduit un SelectionBrush bleu par défaut,
+            // et avec un alpha calibré pour l'autre thème. Réappliquer l'accent
+            // le régénère aux bonnes valeurs — indispensable pour les bascules
+            // automatiques (thème Auto, changement de thème Windows) qui ne passent
+            // pas par la fenêtre de paramètres.
+            ApplyAccentColor(_settingsProvider.Current.Appearance.AccentColor);
+
             ThemeChanged?.Invoke(this, theme);
         }
         catch

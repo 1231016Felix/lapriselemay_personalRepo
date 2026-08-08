@@ -144,23 +144,38 @@ public sealed class SearchResult : INotifyPropertyChanged
         return clone;
     }
 
-    private string GetDefaultIcon() => Type switch
+    private string GetDefaultIcon() => GetDefaultIcon(Type);
+
+    /// <summary>
+    /// Icône de repli pour un type de résultat, en glyphes <b>Segoe MDL2 Assets</b>.
+    ///
+    /// Les emojis précédents ignoraient totalement le thème et la couleur d'accent, et leur
+    /// poids optique variait fortement d'un glyphe à l'autre — alors que le reste de
+    /// l'interface (loupe, croix, engrenage) est déjà en MDL2. Ces glyphes-ci sont
+    /// monochromes et prennent donc la teinte définie par le thème.
+    ///
+    /// Les codes ci-dessous ont été vérifiés visuellement dans la police installée.
+    /// Les emojis posés explicitement ailleurs (météo, minuteries, erreurs) restent
+    /// des emojis : <see cref="Converters.IconGlyphToFontFamilyConverter"/> choisit
+    /// la bonne police à l'affichage.
+    /// </summary>
+    public static string GetDefaultIcon(ResultType type) => type switch
     {
-        ResultType.Application => "🚀",
-        ResultType.StoreApp => "🪟",
-        ResultType.File => "📄",
-        ResultType.Folder => "📁",
-        ResultType.Script => "⚡",
-        ResultType.WebSearch => "🔍",
-        ResultType.Command => "⌨️",
-        ResultType.Calculator => "🧮",
-        ResultType.SystemCommand => "⚙️",
-        ResultType.SearchHistory => "🕐",
-        ResultType.SystemControl => "🎛️",
-        ResultType.AppControl => "🔧",
-        ResultType.Bookmark => "⭐",
-        ResultType.Note => "📝",
-        _ => "📌"
+        ResultType.Application => "",    // fenêtre
+        ResultType.StoreApp => "",       // sac de courses (Store)
+        ResultType.File => "",           // page
+        ResultType.Folder => "",         // dossier
+        ResultType.Script => "",         // accolades (code)
+        ResultType.WebSearch => "",      // globe
+        ResultType.Command => "",        // invite de commande
+        ResultType.Calculator => "",     // calculatrice
+        ResultType.SystemCommand => "",  // engrenage
+        ResultType.SearchHistory => "",  // horloge avec flèche (historique)
+        ResultType.SystemControl => "",  // engrenages multiples
+        ResultType.AppControl => "",     // clé à molette
+        ResultType.Bookmark => "",       // étoile
+        ResultType.Note => "",           // note
+        _ => ""                          // épingle
     };
     
     public override string ToString() => $"{DisplayIcon} {Name}";

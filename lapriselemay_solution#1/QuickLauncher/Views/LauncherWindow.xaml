@@ -31,6 +31,8 @@
         <converters:PreviewTypeToVisibilityConverter x:Key="PreviewTypeToVis"/>
         <converters:ResultTypeToBadgeTextConverter x:Key="TypeToBadgeText"/>
         <converters:ResultTypeToBadgeColorConverter x:Key="TypeToBadgeColor"/>
+        <converters:ResultTypeToBadgeForegroundConverter x:Key="TypeToBadgeFg"/>
+        <converters:IconGlyphToFontFamilyConverter x:Key="GlyphFont"/>
         <converters:AlternationToShortcutConverter x:Key="AltShortcut"/>
         <converters:AlternationToShortcutVisibilityConverter x:Key="AltShortcutVis"/>
         
@@ -451,11 +453,13 @@
                                     </Image.Style>
                                 </Image>
                                 
-                                <!-- Icône emoji (fallback) — largeur fixe pour aligner les noms -->
+                                <!-- Icône de repli (glyphe MDL2 ou emoji) — largeur fixe pour aligner les noms.
+                                     La police est choisie d'après le caractère : les glyphes MDL2 prennent
+                                     la teinte du thème, les emojis restent en couleur. -->
                                 <TextBlock Grid.Column="0"
                                            Text="{Binding DisplayIcon}"
-                                           FontFamily="Segoe UI Emoji"
-                                           FontSize="22"
+                                           FontFamily="{Binding DisplayIcon, Converter={StaticResource GlyphFont}}"
+                                           FontSize="20"
                                            Width="32"
                                            TextAlignment="Center"
                                            VerticalAlignment="Center"
@@ -463,9 +467,14 @@
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Visibility" Value="{Binding NativeIcon, Converter={StaticResource IconToVis}, ConverterParameter=Emoji}"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsInfoBlock}" Value="True">
                                                     <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                                <!-- Item sélectionné : remonter le glyphe au premier plan -->
+                                                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -490,10 +499,12 @@
                                             </Style.Triggers>
                                         </Style>
                                     </Border.Style>
+                                    <!-- Le texte est noir ou blanc selon la luminance du fond :
+                                         le blanc en dur donnait 1.55:1 sur le jaune des favoris. -->
                                     <TextBlock Text="{Binding Type, Converter={StaticResource TypeToBadgeText}}"
-                                               FontSize="9"
+                                               FontSize="10"
                                                FontWeight="Bold"
-                                               Foreground="White"/>
+                                               Foreground="{Binding Type, Converter={StaticResource TypeToBadgeFg}}"/>
                                 </Border>
                                 
                                 <StackPanel Grid.Column="2" VerticalAlignment="Center">

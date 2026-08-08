@@ -15,11 +15,8 @@ public sealed class HistoryItem
     {
         Name = Name, Path = Path, Type = Type,
         Description = $"🕐 {LastUsed:dd/MM HH:mm}",
-        DisplayIcon = Icon ?? (Type switch
-        {
-            ResultType.Application => "🚀", ResultType.StoreApp => "🪧",
-            ResultType.File => "📄", ResultType.Folder => "📁",
-            ResultType.Script => "⚡", ResultType.Bookmark => "⭐", _ => "📌"
-        })
+        // Source unique : évite que l'historique dérive du jeu d'icônes principal
+        // (cette liste dupliquait celle de SearchResult, en moins complète).
+        DisplayIcon = Icon ?? SearchResult.GetDefaultIcon(Type)
     };
 }

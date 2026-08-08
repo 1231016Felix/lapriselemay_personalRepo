@@ -26,6 +26,9 @@
     
     <!-- DPAPI - Chiffrement des données sensibles (clés API) -->
     <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="9.0.2" />
+    
+    <!-- Installateur + mises à jour automatiques -->
+    <PackageVersion Include="Velopack" Version="1.2.0" />
   </ItemGroup>
 
 </Project>

@@ -97,7 +97,24 @@ public sealed class FileLogger : ILogger, IDisposable
             sb.Append("  Message: ").AppendLine(exception.Message);
             if (exception.StackTrace != null)
             {
-                sb.Append("  StackTrace: ").Append(exception.StackTrace);
+                sb.AppendLine("  StackTrace: " + exception.StackTrace);
+            }
+            
+            // Les exceptions les plus utiles (TypeInitializationException,
+            // TargetInvocationException, AggregateException) n'ont d'intérêt
+            // que par leur cause racine : on déroule toute la chaîne.
+            var inner = exception.InnerException;
+            var depth = 1;
+            while (inner != null && depth <= 5)
+            {
+                sb.Append("  --- Inner #").Append(depth).Append(": ").AppendLine(inner.GetType().FullName);
+                sb.Append("      Message: ").AppendLine(inner.Message);
+                if (inner.StackTrace != null)
+                {
+                    sb.Append("      StackTrace: ").AppendLine(inner.StackTrace);
+                }
+                inner = inner.InnerException;
+                depth++;
             }
         }
         

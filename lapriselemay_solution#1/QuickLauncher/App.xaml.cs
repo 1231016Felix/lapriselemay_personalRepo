@@ -10,6 +10,7 @@ using QuickLauncher.Services;
 using QuickLauncher.Views;
 using QuickLauncher.Services.CommandHandlers;
 using QuickLauncher.ViewModels;
+using Velopack;
 
 using Application = System.Windows.Application;
 using MessageBox = System.Windows.MessageBox;
@@ -30,6 +31,24 @@ public partial class App : Application
     /// Centralise la création et la durée de vie des services.
     /// </summary>
     public static ServiceProvider Services { get; private set; } = null!;
+
+    /// <summary>
+    /// Point d'entrée explicite (remplace le Main auto-généré par WPF).
+    /// Velopack doit s'exécuter en tout premier : lors d'une installation ou d'une
+    /// mise à jour, il intercepte le lancement pour créer les raccourcis puis
+    /// termine le processus. Aucun code applicatif ne doit s'exécuter avant.
+    /// </summary>
+    [STAThread]
+    private static void Main(string[] args)
+    {
+        VelopackApp.Build()
+            .OnFirstRun(_ => UpdateService.OnFirstRun())
+            .Run();
+
+        var app = new App();
+        app.InitializeComponent();
+        app.Run();
+    }
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -92,6 +111,11 @@ public partial class App : Application
             SetupAutoReindex();
             
             _logger.Info("Démarrage terminé!");
+            
+            // Vérification des mises à jour en arrière-plan (non bloquante).
+            // Volontairement après "Démarrage terminé" : un repo injoignable ou
+            // un réseau lent ne doit jamais retarder l'affichage du launcher.
+            _ = CheckForUpdatesAsync(silent: true);
         }
         catch (Exception ex)
         {
@@ -111,6 +135,9 @@ public partial class App : Application
         
         // Settings centralisés (cache en mémoire, événement SettingsChanged)
         services.AddSingleton<ISettingsProvider, SettingsProvider>();
+        
+        // Mises à jour automatiques via GitHub Releases (Velopack)
+        services.AddSingleton<UpdateService>();
         
         // Services principaux
         services.AddSingleton<FolderFingerprintService>();
@@ -256,6 +283,7 @@ public partial class App : Application
         AddMenuItem(menu, "⚙️ Paramètres...", ShowSettings);
         AddMenuItem(menu, "🔄 Réindexer", async () => await ReindexAsync());
         menu.Items.Add(new System.Windows.Controls.Separator());
+        AddMenuItem(menu, "⬆️ Vérifier les mises à jour", async () => await CheckForUpdatesAsync(silent: false));
         AddMenuItem(menu, "❓ Aide", ShowHelp);
         menu.Items.Add(new System.Windows.Controls.Separator());
         AddMenuItem(menu, "🚪 Quitter", ExitApplication);
@@ -381,6 +409,56 @@ public partial class App : Application
         }
         
         _autoReindexTimer.Start();
+    }
+
+    /// <summary>
+    /// Vérifie et télécharge une éventuelle mise à jour.
+    /// En mode <paramref name="silent"/> (démarrage), rien n'est affiché si l'app
+    /// est à jour ou si la vérification échoue. En mode manuel (menu du tray),
+    /// l'utilisateur reçoit toujours un retour.
+    /// </summary>
+    private async Task CheckForUpdatesAsync(bool silent)
+    {
+        var updateService = Services.GetRequiredService<UpdateService>();
+        
+        if (!updateService.IsInstalled)
+        {
+            if (!silent)
+            {
+                MessageBox.Show(
+                    "Les mises à jour automatiques ne sont disponibles que pour la version installée.\n\n" +
+                    "Téléchargez l'installateur depuis les Releases GitHub du projet.",
+                    $"{Constants.AppName} - Mises à jour",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            return;
+        }
+        
+        var newVersion = await updateService.CheckAndDownloadAsync();
+        
+        if (newVersion is null)
+        {
+            if (!silent)
+            {
+                MessageBox.Show(
+                    $"{Constants.AppName} est à jour (version {updateService.CurrentVersion}).",
+                    $"{Constants.AppName} - Mises à jour",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            return;
+        }
+        
+        var result = MessageBox.Show(
+            $"La version {newVersion} a été téléchargée.\n\n" +
+            "Redémarrer maintenant pour l'installer ?",
+            $"{Constants.AppName} - Mise à jour disponible",
+            MessageBoxButton.YesNo, MessageBoxImage.Question);
+        
+        if (result == MessageBoxResult.Yes)
+        {
+            Cleanup();
+            updateService.ApplyPendingUpdateAndRestart();
+        }
     }
 
     private async Task ReindexAsync()

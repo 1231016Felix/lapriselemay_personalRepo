@@ -9,10 +9,13 @@
     <ApplicationIcon Condition="Exists('Resources\app.ico')">Resources\app.ico</ApplicationIcon>
     <AssemblyName>QuickLauncher</AssemblyName>
     <RootNamespace>QuickLauncher</RootNamespace>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Description>Application Launcher style Spotlight/PowerToys Run</Description>
     <StartupObject>QuickLauncher.App</StartupObject>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- L'UI est en français uniquement : inutile d'embarquer les 13 dossiers
+         de ressources satellites WPF (~18 Mo dans un publish self-contained). -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <!-- Requis par le source generator WinRT (WinRTGenericInstantiation.g.cs) -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- WFO0003 suggère SetHighDpiMode (WinForms only). Inapproprié ici :
@@ -42,6 +45,17 @@
     
     <!-- DPAPI - Chiffrement des données sensibles (clés API) -->
     <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+    
+    <!-- Installateur + mises à jour automatiques (Velopack) -->
+    <PackageReference Include="Velopack" />
+  </ItemGroup>
+
+  <!-- Velopack exige un Main explicite pour s'initialiser avant WPF.
+       App.xaml passe donc de ApplicationDefinition (Main auto-généré) à Page,
+       et le Main est défini manuellement dans App.xaml.cs. -->
+  <ItemGroup>
+    <ApplicationDefinition Remove="App.xaml" />
+    <Page Include="App.xaml" />
   </ItemGroup>
 
 

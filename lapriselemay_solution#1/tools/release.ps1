@@ -30,14 +30,18 @@
 #>
 [CmdletBinding()]
 param(
+    # Les espaces autour du numero sont tolérés : en mode interactif, 'set /p'
+    # conserve tout ce que l'utilisateur a tapé, espace de fin compris.
     [Parameter(Mandatory, Position = 0)]
-    [ValidatePattern('^\d+\.\d+\.\d+$')]
+    [ValidatePattern('^\s*\d+\.\d+\.\d+\s*$')]
     [string] $Version,
 
     [switch] $DryRun
 )
 
 $ErrorActionPreference = 'Stop'
+
+$Version = $Version.Trim()
 
 # =====================================================================
 #  Configuration

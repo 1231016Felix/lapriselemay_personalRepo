@@ -81,81 +81,9 @@
         </Style>
         
         
-        <!-- Style menu contextuel avec thème (sans gutter/bande blanche) -->
-        <Style x:Key="DarkContextMenuStyle" TargetType="ContextMenu">
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
-            <Setter Property="Padding" Value="4"/>
-            <Setter Property="SnapsToDevicePixels" Value="True"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ContextMenu">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6"
-                                Padding="{TemplateBinding Padding}"
-                                SnapsToDevicePixels="True">
-                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        
-        <!-- Style MenuItem sans gutter (bande blanche) -->
-        <Style x:Key="DarkMenuItemStyle" TargetType="MenuItem">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
-            <Setter Property="Padding" Value="12,8"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="MenuItem">
-                        <Border x:Name="Bd"
-                                Background="{TemplateBinding Background}"
-                                BorderThickness="0"
-                                CornerRadius="4"
-                                Padding="{TemplateBinding Padding}"
-                                Margin="2">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <!-- Icône MDL2 (teintée par le Foreground de l'item, y compris le rouge Supprimer) -->
-                                <ContentPresenter Grid.Column="0"
-                                                  ContentSource="Icon"
-                                                  VerticalAlignment="Center"
-                                                  Margin="0,0,10,0"/>
-                                <ContentPresenter Grid.Column="1"
-                                                  ContentSource="Header"
-                                                  RecognizesAccessKey="True"
-                                                  VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="2"
-                                           Text="{TemplateBinding InputGestureText}"
-                                           Foreground="{DynamicResource TextTertiaryBrush}"
-                                           FontSize="11"
-                                           Margin="20,0,0,0"
-                                           VerticalAlignment="Center"/>
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        
+        <!-- Styles de menu contextuel : versions canoniques dans Styles.xaml
+             (ThemedContextMenuStyle / ThemedMenuItemStyle) -->
+
         <!-- Style pour les actions secondaires -->
         <Style x:Key="ActionItemStyle" TargetType="ListBoxItem">
             <Setter Property="Padding" Value="10,8"/>
@@ -186,7 +114,7 @@
         </Style>
         
         <!-- Menu contextuel pour les résultats (généré dynamiquement) -->
-        <ContextMenu x:Key="ResultContextMenu" Style="{StaticResource DarkContextMenuStyle}"
+        <ContextMenu x:Key="ResultContextMenu" Style="{StaticResource ThemedContextMenuStyle}"
                      Opened="ResultContextMenu_Opened"/>
     </Window.Resources>
     

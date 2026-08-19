@@ -161,7 +161,9 @@
         </Setter>
     </Style>
     
-    <!-- Style MenuItem sans gutter (bande blanche à gauche) -->
+    <!-- Style MenuItem sans gutter (bande blanche à gauche).
+         Version canonique unique (les doublons DarkMenuItemStyle de
+         LauncherWindow.xaml ont été fusionnés ici). -->
     <Style x:Key="ThemedMenuItemStyle" TargetType="MenuItem">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
@@ -178,14 +180,20 @@
                             Margin="2">
                         <Grid>
                             <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
+                            <!-- Icône MDL2 (teintée par le Foreground de l'item, y compris le rouge Supprimer) -->
                             <ContentPresenter Grid.Column="0"
+                                              ContentSource="Icon"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,10,0"/>
+                            <ContentPresenter Grid.Column="1"
                                               ContentSource="Header"
                                               RecognizesAccessKey="True"
                                               VerticalAlignment="Center"/>
-                            <TextBlock Grid.Column="1"
+                            <TextBlock Grid.Column="2"
                                        Text="{TemplateBinding InputGestureText}"
                                        Foreground="{DynamicResource TextTertiaryBrush}"
                                        FontSize="11"

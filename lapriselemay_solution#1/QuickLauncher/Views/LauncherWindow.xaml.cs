@@ -987,7 +987,7 @@ public partial class LauncherWindow : Window
         var actions = _fileActionProvider.GetActionsForResult(result, isPinned, hasAlias);
         
         // Créer le style pour les items
-        var menuItemStyle = (Style)FindResource("DarkMenuItemStyle");
+        var menuItemStyle = (Style)FindResource("ThemedMenuItemStyle");
         
         int? lastCategory = null;
         

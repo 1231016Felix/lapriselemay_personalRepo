@@ -53,6 +53,11 @@ public partial class App : Application
 
     protected override async void OnStartup(StartupEventArgs e)
     {
+        // Brancher le pont de log statique AVANT toute résolution DI :
+        // AppSettings.Load / SecureStorageService s'exécutent dès la création
+        // du SettingsProvider et doivent tracer dans le fichier de log.
+        Log.Logger = _logger;
+
         SetupExceptionHandling();
         
         try

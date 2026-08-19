@@ -120,18 +120,20 @@ public sealed class AppSettings
                     var plainKey = settings.Integrations.AiApiKey;
                     settings.Integrations.AiApiKeyDecrypted = plainKey;
                     settings.Save();
-                    System.Diagnostics.Debug.WriteLine("[Settings] Clé API migrée vers DPAPI");
+                    Services.Log.Info("[Settings] Clé API migrée vers DPAPI");
                 }
-                
-                System.Diagnostics.Debug.WriteLine($"[Settings] Chargé avec {settings.Search.PinnedItems.Count} épingles (format: {(isNewFormat ? "v2" : "legacy→v2")})");
+
+                Services.Log.Debug($"[Settings] Chargé avec {settings.Search.PinnedItems.Count} épingles (format: {(isNewFormat ? "v2" : "legacy→v2")})");
                 return settings;
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[Settings] Erreur chargement: {ex.Message}");
+            // Retour silencieux aux valeurs par défaut = perte de tous les réglages
+            // pour l'utilisateur : cet échec doit être visible en production.
+            Services.Log.Error("[Settings] Échec du chargement — retour aux paramètres par défaut", ex);
         }
-        
+
         return new AppSettings();
     }
 
@@ -152,11 +154,12 @@ public sealed class AppSettings
             File.WriteAllText(tempPath, json);
             File.Move(tempPath, SettingsPath, overwrite: true);
 
-            System.Diagnostics.Debug.WriteLine($"[Settings] Sauvegardé avec {Search.PinnedItems.Count} épingles");
+            Services.Log.Debug($"[Settings] Sauvegardé avec {Search.PinnedItems.Count} épingles");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[Settings] Erreur sauvegarde: {ex.Message}");
+            // Les modifications (épingles, historique, clé API) ne sont PAS persistées.
+            Services.Log.Error("[Settings] Échec de la sauvegarde", ex);
         }
     }
     

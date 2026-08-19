@@ -178,24 +178,24 @@ public static class SystemControlService
 
     /// <summary>
     /// Active ou désactive le WiFi via l'API WinRT Radio (pas besoin de droits admin).
+    /// Async de bout en bout : l'ancien pattern Task.Run(...).GetAwaiter().GetResult()
+    /// bloquait le thread UI pendant l'appel WinRT (parfois plusieurs centaines de ms).
     /// </summary>
-    public static bool SetWifi(bool enabled)
+    public static async Task<bool> SetWifiAsync(bool enabled)
     {
         try
         {
-            return Task.Run(async () =>
-            {
-                var radios = await Radio.GetRadiosAsync();
-                var wifiRadio = radios.FirstOrDefault(r => r.Kind == RadioKind.WiFi);
-                if (wifiRadio == null) return false;
-                
-                var targetState = enabled ? RadioState.On : RadioState.Off;
-                var result = await wifiRadio.SetStateAsync(targetState);
-                return result == RadioAccessStatus.Allowed;
-            }).GetAwaiter().GetResult();
+            var radios = await Radio.GetRadiosAsync();
+            var wifiRadio = radios.FirstOrDefault(r => r.Kind == RadioKind.WiFi);
+            if (wifiRadio == null) return false;
+
+            var targetState = enabled ? RadioState.On : RadioState.Off;
+            var result = await wifiRadio.SetStateAsync(targetState);
+            return result == RadioAccessStatus.Allowed;
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"[SystemControl] SetWifi erreur: {ex.Message}");
             return false;
         }
     }
@@ -203,25 +203,22 @@ public static class SystemControlService
     /// <summary>
     /// Bascule l'état du WiFi.
     /// </summary>
-    public static bool ToggleWifi()
+    public static async Task<bool> ToggleWifiAsync()
     {
-        var currentState = IsWifiEnabled();
-        return SetWifi(!currentState);
+        var currentState = await IsWifiEnabledAsync();
+        return await SetWifiAsync(!currentState);
     }
 
     /// <summary>
     /// Vérifie si le WiFi est activé via l'API WinRT Radio.
     /// </summary>
-    public static bool IsWifiEnabled()
+    public static async Task<bool> IsWifiEnabledAsync()
     {
         try
         {
-            return Task.Run(async () =>
-            {
-                var radios = await Radio.GetRadiosAsync();
-                var wifiRadio = radios.FirstOrDefault(r => r.Kind == RadioKind.WiFi);
-                return wifiRadio?.State == RadioState.On;
-            }).GetAwaiter().GetResult();
+            var radios = await Radio.GetRadiosAsync();
+            var wifiRadio = radios.FirstOrDefault(r => r.Kind == RadioKind.WiFi);
+            return wifiRadio?.State == RadioState.On;
         }
         catch
         {
@@ -876,24 +873,26 @@ public static class SystemControlService
 
     /// <summary>
     /// Parse et exécute une commande système.
+    /// Async : seule la commande wifi attend réellement (API WinRT),
+    /// les autres branches s'exécutent de manière synchrone.
     /// </summary>
-    public static SystemCommandResult? ExecuteCommand(string command)
+    public static async Task<SystemCommandResult?> ExecuteCommandAsync(string command)
     {
         if (string.IsNullOrWhiteSpace(command))
             return null;
-        
+
         var parts = command.Trim().ToLowerInvariant().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0)
             return null;
-        
+
         var cmd = parts[0].TrimStart(':');
         var arg = parts.Length > 1 ? parts[1] : null;
-        
+
         return cmd switch
         {
             "volume" or "vol" => HandleVolumeCommand(arg),
             "brightness" or "bright" => HandleBrightnessCommand(arg),
-            "wifi" => HandleWifiCommand(arg),
+            "wifi" => await HandleWifiCommandAsync(arg),
             "sleep" => Sleep() 
                 ? new SystemCommandResult(true, "Mise en veille...") 
                 : new SystemCommandResult(false, "Échec de la mise en veille"),
@@ -1006,20 +1005,20 @@ public static class SystemControlService
         return new SystemCommandResult(false, "Argument invalide. Utilisez un nombre entre 0 et 100");
     }
 
-    private static SystemCommandResult HandleWifiCommand(string? arg)
+    private static async Task<SystemCommandResult> HandleWifiCommandAsync(string? arg)
     {
         return arg?.ToLowerInvariant() switch
         {
-            "on" or "enable" => SetWifi(true) 
-                ? new SystemCommandResult(true, "WiFi activé") 
+            "on" or "enable" => await SetWifiAsync(true)
+                ? new SystemCommandResult(true, "WiFi activé")
                 : new SystemCommandResult(false, "Échec — radio WiFi introuvable ou accès refusé"),
-            "off" or "disable" => SetWifi(false) 
-                ? new SystemCommandResult(true, "WiFi désactivé") 
+            "off" or "disable" => await SetWifiAsync(false)
+                ? new SystemCommandResult(true, "WiFi désactivé")
                 : new SystemCommandResult(false, "Échec — radio WiFi introuvable ou accès refusé"),
-            "toggle" or null => ToggleWifi() 
-                ? new SystemCommandResult(true, IsWifiEnabled() ? "WiFi activé" : "WiFi désactivé") 
+            "toggle" or null => await ToggleWifiAsync()
+                ? new SystemCommandResult(true, await IsWifiEnabledAsync() ? "WiFi activé" : "WiFi désactivé")
                 : new SystemCommandResult(false, "Échec — radio WiFi introuvable ou accès refusé"),
-            "status" => new SystemCommandResult(true, IsWifiEnabled() ? "WiFi: Activé" : "WiFi: Désactivé"),
+            "status" => new SystemCommandResult(true, await IsWifiEnabledAsync() ? "WiFi: Activé" : "WiFi: Désactivé"),
             _ => new SystemCommandResult(false, "Argument invalide. Utilisez on, off, toggle ou status")
         };
     }

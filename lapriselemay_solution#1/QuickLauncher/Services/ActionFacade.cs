@@ -90,7 +90,8 @@ public sealed class ActionFacade
 
     /// <summary>
     /// Tente d'exécuter une commande de contrôle système.
+    /// Async : la commande wifi attend des API WinRT sans bloquer le thread UI.
     /// </summary>
-    public SystemControlExecutionResult ExecuteSystemControl(string command)
-        => _systemControlExecutor.Execute(command);
+    public Task<SystemControlExecutionResult> ExecuteSystemControlAsync(string command)
+        => _systemControlExecutor.ExecuteAsync(command);
 }

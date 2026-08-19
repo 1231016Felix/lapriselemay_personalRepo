@@ -47,7 +47,7 @@ public sealed class SystemControlExecutionResult
 
 /// <summary>
 /// Exécute les commandes de contrôle système (volume, lock, timer, note, screenshot, etc.).
-/// Extrait de LauncherViewModel.ExecuteSystemControl() pour découpler la logique métier
+/// Extrait de LauncherViewModel.ExecuteSystemControlAsync() pour découpler la logique métier
 /// de la couche présentation.
 /// 
 /// Contrairement aux ICommandHandler qui gèrent la phase de *recherche* (affichage des résultats),
@@ -57,8 +57,10 @@ public interface ISystemControlExecutor
 {
     /// <summary>
     /// Tente d'exécuter une commande de contrôle système.
+    /// Async : certaines commandes (wifi) attendent des API WinRT et ne doivent
+    /// pas bloquer le thread UI ; les autres s'exécutent de manière synchrone.
     /// </summary>
     /// <param name="command">Commande brute (ex: ":volume 50", ":lock", ":translate:copy:texte").</param>
     /// <returns>Résultat de l'exécution.</returns>
-    SystemControlExecutionResult Execute(string command);
+    Task<SystemControlExecutionResult> ExecuteAsync(string command);
 }

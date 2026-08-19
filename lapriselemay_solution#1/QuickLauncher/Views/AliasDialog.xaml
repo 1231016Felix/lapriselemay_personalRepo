@@ -11,9 +11,9 @@
         Height="260"
         ResizeMode="NoResize">
     
-    <Border Background="#1E1E1E" 
+    <Border Background="{DynamicResource BackgroundBrush}" 
             CornerRadius="8" 
-            BorderBrush="#3E3E3E" 
+            BorderBrush="{DynamicResource BorderBrush}" 
             BorderThickness="1"
             Padding="20">
         <Border.Effect>
@@ -34,39 +34,39 @@
                        Text="Créer un alias"
                        FontSize="16"
                        FontWeight="SemiBold"
-                       Foreground="White"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
                        Margin="0,0,0,15"/>
             
             <TextBlock Grid.Row="1"
                        Text="Alias (raccourci texte)"
                        FontSize="12"
-                       Foreground="#A0A0A0"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
                        Margin="0,0,0,5"/>
             
             <TextBox x:Name="AliasTextBox"
                      Grid.Row="2"
                      FontSize="14"
                      Padding="10,8"
-                     Background="#2D2D2D"
-                     Foreground="White"
-                     BorderBrush="#3E3E3E"
+                     Background="{DynamicResource SurfaceBrush}"
+                     Foreground="{DynamicResource TextPrimaryBrush}"
+                     BorderBrush="{DynamicResource BorderBrush}"
                      BorderThickness="1"
-                     CaretBrush="White"
+                     CaretBrush="{DynamicResource TextPrimaryBrush}"
                      Margin="0,0,0,10"/>
             
             <TextBlock Grid.Row="3"
                        Text="Cible"
                        FontSize="12"
-                       Foreground="#A0A0A0"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
                        Margin="0,0,0,5"/>
             
             <TextBox x:Name="TargetTextBox"
                      Grid.Row="4"
                      FontSize="12"
                      Padding="10,8"
-                     Background="#2D2D2D"
-                     Foreground="#808080"
-                     BorderBrush="#3E3E3E"
+                     Background="{DynamicResource SurfaceBrush}"
+                     Foreground="{DynamicResource TextTertiaryBrush}"
+                     BorderBrush="{DynamicResource BorderBrush}"
                      BorderThickness="1"
                      IsReadOnly="True"
                      IsTabStop="False"
@@ -80,14 +80,14 @@
                 <Button Content="Annuler" 
                         Padding="15,8"
                         Margin="0,0,10,0"
-                        Background="#3E3E3E"
-                        Foreground="White"
+                        Background="{DynamicResource HoverBrush}"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
                         BorderThickness="0"
                         Cursor="Hand"
                         Click="Cancel_Click"/>
                 <Button Content="Créer" 
                         Padding="15,8"
-                        Background="#0078D4"
+                        Background="{DynamicResource AccentBrush}"
                         Foreground="White"
                         BorderThickness="0"
                         Cursor="Hand"

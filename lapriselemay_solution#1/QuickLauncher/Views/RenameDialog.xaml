@@ -11,9 +11,9 @@
         Height="160"
         ResizeMode="NoResize">
     
-    <Border Background="#1E1E1E" 
+    <Border Background="{DynamicResource BackgroundBrush}" 
             CornerRadius="8" 
-            BorderBrush="#3E3E3E" 
+            BorderBrush="{DynamicResource BorderBrush}" 
             BorderThickness="1"
             Padding="20">
         <Border.Effect>
@@ -32,18 +32,18 @@
                        Text="Renommer"
                        FontSize="16"
                        FontWeight="SemiBold"
-                       Foreground="White"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
                        Margin="0,0,0,15"/>
             
             <TextBox x:Name="NameTextBox"
                      Grid.Row="1"
                      FontSize="14"
                      Padding="10,8"
-                     Background="#2D2D2D"
-                     Foreground="White"
-                     BorderBrush="#3E3E3E"
+                     Background="{DynamicResource SurfaceBrush}"
+                     Foreground="{DynamicResource TextPrimaryBrush}"
+                     BorderBrush="{DynamicResource BorderBrush}"
                      BorderThickness="1"
-                     CaretBrush="White"/>
+                     CaretBrush="{DynamicResource TextPrimaryBrush}"/>
             
             <StackPanel Grid.Row="3" 
                         Orientation="Horizontal" 
@@ -52,14 +52,14 @@
                 <Button Content="Annuler" 
                         Padding="15,8"
                         Margin="0,0,10,0"
-                        Background="#3E3E3E"
-                        Foreground="White"
+                        Background="{DynamicResource HoverBrush}"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
                         BorderThickness="0"
                         Cursor="Hand"
                         Click="Cancel_Click"/>
                 <Button Content="Renommer" 
                         Padding="15,8"
-                        Background="#0078D4"
+                        Background="{DynamicResource AccentBrush}"
                         Foreground="White"
                         BorderThickness="0"
                         Cursor="Hand"

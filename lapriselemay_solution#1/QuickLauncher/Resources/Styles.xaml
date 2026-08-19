@@ -66,6 +66,13 @@
     <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}"/>
     <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}"/>
     <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}"/>
+
+    <!-- Surfaces d'état : fond teinté derrière un message succès/avertissement/erreur.
+         Alpha sur la couleur d'état plutôt que des hexas opaques : rendu équivalent
+         sur le fond sombre actuel, et s'adaptera de lui-même à un futur thème clair. -->
+    <SolidColorBrush x:Key="SuccessSurfaceBrush" Color="#264CAF50"/>
+    <SolidColorBrush x:Key="WarningSurfaceBrush" Color="#26FFA726"/>
+    <SolidColorBrush x:Key="DangerSurfaceBrush" Color="#26FF6B6B"/>
     
     <!-- ============================================ -->
     <!-- STYLES COMMUNS -->

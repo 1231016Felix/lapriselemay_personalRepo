@@ -23,15 +23,42 @@
 
 ## Installation et démarrage
 
+### 📥 Télécharger l'application
+
+L'exécutable n'est **pas dans le code source** : il est publié dans les [**Releases GitHub**](https://github.com/1231016Felix/lapriselemay_personalRepo/releases/latest).
+
+1. Ouvrez la page [Releases](https://github.com/1231016Felix/lapriselemay_personalRepo/releases/latest)
+2. Dépliez la section **Assets** en bas de la release
+3. Téléchargez le fichier qui vous convient :
+
+| Fichier | Usage |
+|---------|-------|
+| `LapriseLemay.QuickLauncher-win-Setup.exe` | ✅ **Recommandé** — installe l'application, crée les raccourcis (menu Démarrer + Bureau) et active les mises à jour automatiques |
+| `LapriseLemay.QuickLauncher-win-Portable.zip` | Version portable — dézippez et lancez `QuickLauncher.exe`, sans installation (pas de mises à jour automatiques) |
+
+> Les autres fichiers (`.nupkg`, `RELEASES`, `releases.win.json`) sont utilisés en interne par le système de mise à jour Velopack — ignorez-les.
+
+> ⚠️ **Avertissement SmartScreen** : l'exécutable n'est pas signé numériquement. Si Windows affiche « Windows a protégé votre ordinateur », cliquez sur **Informations complémentaires** → **Exécuter quand même**.
+
 ### Prérequis
 - Windows 10/11
-- .NET 9.0 Runtime
+- Aucun runtime à installer : l'application est publiée en *self-contained*. (Le SDK .NET 9.0 n'est requis que pour compiler depuis les sources.)
+
+### Compiler depuis les sources (alternative)
+```
+git clone https://github.com/1231016Felix/lapriselemay_personalRepo.git
+cd "lapriselemay_personalRepo/lapriselemay_solution#1"
+dotnet build QuickLauncher/QuickLauncher.csproj -c Release
+```
 
 ### Premier lancement
-1. Lancez `QuickLauncher.exe`
+1. Lancez `QuickLauncher.exe` (ou l'application installée via le Setup)
 2. L'application démarre minimisée dans la zone de notification (près de l'horloge)
 3. Une icône apparaît dans la barre des tâches système
 4. L'indexation des fichiers commence automatiquement en arrière-plan
+
+### Mises à jour
+Installée via le Setup, l'application vérifie les Releases GitHub au démarrage et se met à jour toute seule. Vous pouvez aussi forcer la vérification : clic droit sur l'icône système → **Vérifier les mises à jour**.
 
 ### Démarrage automatique avec Windows
 Par défaut, QuickLauncher est configuré pour démarrer avec Windows. Vous pouvez désactiver cette option dans les paramètres.
@@ -511,7 +538,7 @@ Cliquez et maintenez n'importe où sur la fenêtre (hors champ de texte et liste
 
 <div align="center">
 
-**QuickLauncher** v1.0.0  
+**QuickLauncher** — [dernière version](https://github.com/1231016Felix/lapriselemay_personalRepo/releases/latest)  
 Développé par Felix-Antoine
 
 </div>

@@ -27,7 +27,7 @@ public sealed class SystemControlExecutor : ISystemControlExecutor
         _timerWidgetService = timerWidgetService;
     }
     
-    public SystemControlExecutionResult Execute(string command)
+    public async Task<SystemControlExecutionResult> ExecuteAsync(string command)
     {
         if (string.IsNullOrEmpty(command))
             return SystemControlExecutionResult.NotHandled;
@@ -55,7 +55,7 @@ public sealed class SystemControlExecutor : ISystemControlExecutor
             c.IsEnabled && c.Prefix.Equals(cmdPrefix, StringComparison.OrdinalIgnoreCase));
         
         if (matchedCmd == null)
-            return ExecuteNormalizedCommand(command);
+            return await ExecuteNormalizedCommandAsync(command);
         
         return matchedCmd.Type switch
         {
@@ -76,7 +76,7 @@ public sealed class SystemControlExecutor : ISystemControlExecutor
             SystemControlType.AppClearHistory => new() { Handled = true, ShouldHide = true, AppAction = AppAction.ClearHistory },
             SystemControlType.AppHelp => new() { Handled = true, AppAction = AppAction.ShowHelp },
             
-            _ => ExecuteNormalizedCommand(command)
+            _ => await ExecuteNormalizedCommandAsync(command)
         };
     }
     
@@ -313,10 +313,10 @@ public sealed class SystemControlExecutor : ISystemControlExecutor
     /// Normalise la commande depuis le préfixe personnalisé vers le format standard
     /// attendu par SystemControlService, puis exécute.
     /// </summary>
-    private SystemControlExecutionResult ExecuteNormalizedCommand(string command)
+    private async Task<SystemControlExecutionResult> ExecuteNormalizedCommandAsync(string command)
     {
         var normalized = NormalizeSystemCommand(command);
-        var result = SystemControlService.ExecuteCommand(normalized);
+        var result = await SystemControlService.ExecuteCommandAsync(normalized);
         
         if (result == null)
             return SystemControlExecutionResult.NotHandled;

@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using QuickLauncher.Models;
+﻿using QuickLauncher.Models;
 
 namespace QuickLauncher.Services;
 
@@ -44,20 +43,20 @@ public sealed class SettingsProvider : ISettingsProvider
     public SettingsProvider()
     {
         _current = AppSettings.Load();
-        Debug.WriteLine($"[SettingsProvider] Initialisé avec {_current.Search.IndexedFolders.Count} dossiers indexés");
+        Log.Debug($"[SettingsProvider] Initialisé avec {_current.Search.IndexedFolders.Count} dossiers indexés");
     }
 
     public void Save()
     {
         _current.Save();
-        Debug.WriteLine("[SettingsProvider] Sauvegardé sur disque et notification envoyée");
+        Log.Debug("[SettingsProvider] Sauvegardé sur disque et notification envoyée");
         SettingsChanged?.Invoke(this, _current);
     }
 
     public void Reload()
     {
         _current = AppSettings.Load();
-        Debug.WriteLine("[SettingsProvider] Rechargé depuis le disque");
+        Log.Debug("[SettingsProvider] Rechargé depuis le disque");
         SettingsChanged?.Invoke(this, _current);
     }
 

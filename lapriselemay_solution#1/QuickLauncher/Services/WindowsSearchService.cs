@@ -219,12 +219,15 @@ public static class WindowsSearchService
 
     private static string EscapeQuery(string query)
     {
-        // Échapper les caractères spéciaux pour SQL et Windows Search
+        // Échapper les caractères spéciaux pour SQL et Windows Search.
+        // '[' doit être échappé EN PREMIER : les remplacements de % et _
+        // introduisent des crochets qui ne doivent pas être re-échappés
+        // (sinon "a%b" → "a[%]b" → "a[[]%]b" et le % redevient un joker).
         return query
-            .Replace("'", "''")
+            .Replace("[", "[[]")
             .Replace("%", "[%]")
             .Replace("_", "[_]")
-            .Replace("[", "[[]")
+            .Replace("'", "''")
             .Replace("\"", "");
     }
 

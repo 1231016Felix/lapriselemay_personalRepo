@@ -137,8 +137,11 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
             GhostSuggestionText = string.Empty;
         }
         
-        // Annuler le debounce précédent et en démarrer un nouveau
+        // Annuler le debounce précédent et en démarrer un nouveau.
+        // Dispose après Cancel : la tâche en vol ne fait que catcher l'OCE et lire
+        // IsCancellationRequested, deux opérations sûres sur une source disposée.
         _debounceCts?.Cancel();
+        _debounceCts?.Dispose();
         _debounceCts = new CancellationTokenSource();
         _ = DebounceSearchAsync(value, _debounceCts.Token);
     }
@@ -325,8 +328,11 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
 
     private async Task UpdateResultsInternalAsync()
     {
-        // Annuler toute recherche précédente et invalider les résultats async en cours
+        // Annuler toute recherche précédente et invalider les résultats async en cours.
+        // Dispose après Cancel : sûr car tous les lecteurs de _searchCts sont sur le
+        // thread UI et le champ pointe toujours vers la source la plus récente.
         _searchCts?.Cancel();
+        _searchCts?.Dispose();
         _searchCts = new CancellationTokenSource();
         var token = _searchCts.Token;
         var generation = Interlocked.Increment(ref _searchGeneration);
@@ -620,14 +626,15 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         return true;
     }
 
+    // Le suffixe Async est retiré par le générateur : la commande reste ExecuteCommand.
     [RelayCommand]
-    private void Execute()
+    private async Task ExecuteAsync()
     {
-        if (SelectedIndex < 0 || SelectedIndex >= Results.Count) 
+        if (SelectedIndex < 0 || SelectedIndex >= Results.Count)
             return;
-        
+
         var item = Results[SelectedIndex];
-        
+
         switch (item.Type)
         {
             case ResultType.SystemCommand:
@@ -635,11 +642,11 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
             case ResultType.AppControl:
                 // Les items SystemControl issus de l'index (ms-settings:, control|, .msc, etc.)
                 // doivent être lancés directement via LaunchService, pas via l'executor de commandes.
-                // Seules les commandes préfixées par ':' sont gérées par ExecuteSystemControl.
+                // Seules les commandes préfixées par ':' sont gérées par ExecuteSystemControlAsync.
                 if (!string.IsNullOrEmpty(item.Path) && !item.Path.StartsWith(':'))
                     LaunchItem(item);
                 else
-                    ExecuteSystemControl(item.Path);
+                    await ExecuteSystemControlAsync(item.Path);
                 break;
                 
             case ResultType.Note:
@@ -870,12 +877,14 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     }
     
 
-    private void ExecuteSystemControl(string? command)
+    private async Task ExecuteSystemControlAsync(string? command)
     {
         if (string.IsNullOrEmpty(command))
             return;
-        
-        var executionResult = _actions.ExecuteSystemControl(command);
+
+        // L'await capture le contexte UI : tout ce qui suit (Results, events)
+        // s'exécute bien sur le thread UI.
+        var executionResult = await _actions.ExecuteSystemControlAsync(command);
         
         if (!executionResult.Handled)
         {

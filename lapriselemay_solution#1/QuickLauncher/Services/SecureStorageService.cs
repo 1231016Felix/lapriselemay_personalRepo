@@ -44,9 +44,10 @@ public static class SecureStorageService
         }
         catch (CryptographicException ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[SecureStorage] Erreur chiffrement: {ex.Message}");
             // En cas d'échec DPAPI (très rare), retourner la valeur en clair
-            // plutôt que perdre la clé de l'utilisateur.
+            // plutôt que perdre la clé de l'utilisateur. Ce repli doit être
+            // visible en production : la valeur sera persistée NON chiffrée.
+            Log.Warning($"[SecureStorage] Échec du chiffrement DPAPI — la valeur sera stockée en clair: {ex.Message}");
             return plainText;
         }
     }
@@ -76,12 +77,12 @@ public static class SecureStorageService
         }
         catch (CryptographicException ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[SecureStorage] Erreur déchiffrement: {ex.Message}");
+            Log.Warning($"[SecureStorage] Échec du déchiffrement — la clé stockée est perdue ou vient d'un autre profil/machine: {ex.Message}");
             return string.Empty;
         }
         catch (FormatException ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[SecureStorage] Base64 invalide: {ex.Message}");
+            Log.Warning($"[SecureStorage] Valeur stockée corrompue (Base64 invalide): {ex.Message}");
             return string.Empty;
         }
     }

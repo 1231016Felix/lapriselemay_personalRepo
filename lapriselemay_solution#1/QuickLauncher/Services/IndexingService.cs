@@ -574,6 +574,13 @@ public sealed partial class IndexingService : IDisposable
                     
                 case FileChangeType.Deleted:
                     RemoveItem(change.Path);
+                    // La suppression d'un dossier ne génère AUCUN événement pour son
+                    // contenu (le shell déplace l'arborescence d'un bloc) : purger
+                    // aussi les entrées enfants pour ne pas laisser d'items fantômes.
+                    // Heuristique : un chemin sans extension est un dossier potentiel
+                    // (impossible de vérifier sur disque, il n'existe plus).
+                    if (!Path.HasExtension(change.Path))
+                        RemoveItemsByFolder(change.Path);
                     break;
                     
                 case FileChangeType.Modified:

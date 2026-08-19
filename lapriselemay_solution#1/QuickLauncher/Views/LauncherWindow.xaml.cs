@@ -987,7 +987,7 @@ public partial class LauncherWindow : Window
         var actions = _fileActionProvider.GetActionsForResult(result, isPinned, hasAlias);
         
         // Créer le style pour les items
-        var menuItemStyle = (Style)FindResource("DarkMenuItemStyle");
+        var menuItemStyle = (Style)FindResource("ThemedMenuItemStyle");
         
         int? lastCategory = null;
         
@@ -997,13 +997,24 @@ public partial class LauncherWindow : Window
             var currentCategory = GetActionCategory(action.ActionType);
             if (lastCategory.HasValue && currentCategory != lastCategory.Value)
             {
-                contextMenu.Items.Add(new Separator { Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3E, 0x3E, 0x3E)) });
+                contextMenu.Items.Add(new Separator { Background = (System.Windows.Media.Brush)FindResource("BorderBrush") });
             }
             lastCategory = currentCategory;
             
             var menuItem = new MenuItem
             {
-                Header = $"{action.Icon} {action.Name}",
+                Header = action.Name,
+                // Glyphe MDL2 dans la zone icône : hérite du Foreground de l'item
+                // (donc suit le thème, et devient rouge sur « Supprimer »).
+                Icon = new TextBlock
+                {
+                    Text = action.Icon,
+                    FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"),
+                    FontSize = 14,
+                    Width = 18,
+                    TextAlignment = TextAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                },
                 Style = menuItemStyle,
                 InputGestureText = action.Shortcut,
                 Tag = action
@@ -1012,7 +1023,7 @@ public partial class LauncherWindow : Window
             // Couleur spéciale pour Supprimer
             if (action.ActionType == FileActionType.Delete)
             {
-                menuItem.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0x6B, 0x6B));
+                menuItem.Foreground = (System.Windows.Media.Brush)FindResource("DangerBrush");
             }
             
             menuItem.Click += (s, args) =>

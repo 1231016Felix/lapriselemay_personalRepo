@@ -40,6 +40,10 @@
     <Color x:Key="AccentHoverColor">#1084D9</Color>
     <Color x:Key="AccentPressedColor">#006CBD</Color>
     <Color x:Key="DangerColor">#FF6B6B</Color>
+    <!-- Rouge saturé pour les FONDS d'éléments destructifs (bouton Réinitialiser) :
+         DangerColor est calibré pour du texte sur fond sombre, trop clair pour
+         porter du texte blanc (2.6:1). DangerStrong garde le blanc à 4.7:1. -->
+    <Color x:Key="DangerStrongColor">#E81123</Color>
     <Color x:Key="SuccessColor">#4CAF50</Color>
     <Color x:Key="WarningColor">#FFA726</Color>
     
@@ -64,8 +68,16 @@
     <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}"/>
     <SolidColorBrush x:Key="AccentHoverBrush" Color="{StaticResource AccentHoverColor}"/>
     <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}"/>
+    <SolidColorBrush x:Key="DangerStrongBrush" Color="{StaticResource DangerStrongColor}"/>
     <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}"/>
     <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}"/>
+
+    <!-- Surfaces d'état : fond teinté derrière un message succès/avertissement/erreur.
+         Alpha sur la couleur d'état plutôt que des hexas opaques : rendu équivalent
+         sur le fond sombre actuel, et s'adaptera de lui-même à un futur thème clair. -->
+    <SolidColorBrush x:Key="SuccessSurfaceBrush" Color="#264CAF50"/>
+    <SolidColorBrush x:Key="WarningSurfaceBrush" Color="#26FFA726"/>
+    <SolidColorBrush x:Key="DangerSurfaceBrush" Color="#26FF6B6B"/>
     
     <!-- ============================================ -->
     <!-- STYLES COMMUNS -->
@@ -149,7 +161,9 @@
         </Setter>
     </Style>
     
-    <!-- Style MenuItem sans gutter (bande blanche à gauche) -->
+    <!-- Style MenuItem sans gutter (bande blanche à gauche).
+         Version canonique unique (les doublons DarkMenuItemStyle de
+         LauncherWindow.xaml ont été fusionnés ici). -->
     <Style x:Key="ThemedMenuItemStyle" TargetType="MenuItem">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
@@ -166,14 +180,20 @@
                             Margin="2">
                         <Grid>
                             <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
+                            <!-- Icône MDL2 (teintée par le Foreground de l'item, y compris le rouge Supprimer) -->
                             <ContentPresenter Grid.Column="0"
+                                              ContentSource="Icon"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,10,0"/>
+                            <ContentPresenter Grid.Column="1"
                                               ContentSource="Header"
                                               RecognizesAccessKey="True"
                                               VerticalAlignment="Center"/>
-                            <TextBlock Grid.Column="1"
+                            <TextBlock Grid.Column="2"
                                        Text="{TemplateBinding InputGestureText}"
                                        Foreground="{DynamicResource TextTertiaryBrush}"
                                        FontSize="11"

@@ -400,18 +400,20 @@ public partial class SettingsWindow : Window
         SearchEngineName.Text = info.Name;
         SearchEngineDescription.Text = info.Description;
         
-        // Style selon le statut
+        // Style selon le statut. Texte noir sur les deux badges : SuccessBrush et
+        // WarningBrush sont des teintes claires, même règle de luminance que les
+        // badges de catégorie du launcher (le blanc sur orange était à 1.9:1).
         if (info.IsOptimal)
         {
-            SearchEngineIndicator.Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x3A, 0x1E));
-            SearchEngineStatusBadge.Background = new SolidColorBrush(Color.FromRgb(0x10, 0x7C, 0x10));
+            SearchEngineIndicator.Background = ThemeBrush("SuccessSurfaceBrush");
+            SearchEngineStatusBadge.Background = ThemeBrush("SuccessBrush");
             SearchEngineStatusText.Text = "✓ Optimal";
-            SearchEngineStatusText.Foreground = new SolidColorBrush(Colors.White);
+            SearchEngineStatusText.Foreground = new SolidColorBrush(Colors.Black);
         }
         else
         {
-            SearchEngineIndicator.Background = new SolidColorBrush(Color.FromRgb(0x3A, 0x2A, 0x1E));
-            SearchEngineStatusBadge.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0x8C, 0x00));
+            SearchEngineIndicator.Background = ThemeBrush("WarningSurfaceBrush");
+            SearchEngineStatusBadge.Background = ThemeBrush("WarningBrush");
             SearchEngineStatusText.Text = "⚠ Non optimal";
             SearchEngineStatusText.Foreground = new SolidColorBrush(Colors.Black);
         }
@@ -694,20 +696,27 @@ public partial class SettingsWindow : Window
         ShowSaveIndicator();
     }
     
+    /// <summary>
+    /// Résout une brush du thème par sa clé (Styles.xaml).
+    /// Centralise les couleurs d'état : un seul vert/orange/rouge dans toute
+    /// l'application, au lieu des Color.FromRgb locaux qui divergeaient entre onglets.
+    /// </summary>
+    private Brush ThemeBrush(string key) => (Brush)FindResource(key);
+
     private void ShowSaveIndicator()
     {
         AutoSaveIndicator.Text = "✓ Sauvegardé";
-        AutoSaveIndicator.Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0x7C, 0x10));
-        
+        AutoSaveIndicator.Foreground = ThemeBrush("SuccessBrush");
+
         _saveIndicatorTimer.Stop();
         _saveIndicatorTimer.Start();
     }
-    
+
     private void SaveIndicatorTimer_Tick(object? sender, EventArgs e)
     {
         _saveIndicatorTimer.Stop();
         AutoSaveIndicator.Text = "💾 Sauvegarde automatique";
-        AutoSaveIndicator.Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+        AutoSaveIndicator.Foreground = ThemeBrush("TextTertiaryBrush");
     }
     
     // === Gestionnaires génériques pour CheckBox ===
@@ -773,8 +782,8 @@ public partial class SettingsWindow : Window
     {
         // Feedback: en cours
         WeatherValidationPanel.Visibility = Visibility.Visible;
-        WeatherValidationPanel.Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x1A));
-        WeatherValidationText.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xB9, 0x00));
+        WeatherValidationPanel.Background = ThemeBrush("WarningSurfaceBrush");
+        WeatherValidationText.Foreground = ThemeBrush("WarningBrush");
         WeatherValidationText.Text = $"🔍 Vérification de « {city} »...";
         WeatherValidateBtn.IsEnabled = false;
         WeatherCityBox.IsEnabled = false;
@@ -794,16 +803,16 @@ public partial class SettingsWindow : Window
                 AutoSave();
                 
                 // Feedback: succès
-                WeatherValidationPanel.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x2D, 0x1A));
-                WeatherValidationText.Foreground = new SolidColorBrush(Color.FromRgb(0x4C, 0xAF, 0x50));
+                WeatherValidationPanel.Background = ThemeBrush("SuccessSurfaceBrush");
+                WeatherValidationText.Foreground = ThemeBrush("SuccessBrush");
                 WeatherValidationText.Text = $"✅ Ville trouvée : {display}";
             }
             else
             {
                 // Feedback: échec — ne pas sauvegarder
                 WeatherCityBox.Text = _settings.Integrations.WeatherCity;
-                WeatherValidationPanel.Background = new SolidColorBrush(Color.FromRgb(0x3D, 0x1A, 0x1A));
-                WeatherValidationText.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0x11, 0x23));
+                WeatherValidationPanel.Background = ThemeBrush("DangerSurfaceBrush");
+                WeatherValidationText.Foreground = ThemeBrush("DangerBrush");
                 WeatherValidationText.Text = $"❌ Ville « {city} » introuvable. Valeur restaurée.";
             }
         }
@@ -811,8 +820,8 @@ public partial class SettingsWindow : Window
         {
             // Erreur réseau — ne pas sauvegarder
             WeatherCityBox.Text = _settings.Integrations.WeatherCity;
-            WeatherValidationPanel.Background = new SolidColorBrush(Color.FromRgb(0x3D, 0x2D, 0x1A));
-            WeatherValidationText.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xB9, 0x00));
+            WeatherValidationPanel.Background = ThemeBrush("WarningSurfaceBrush");
+            WeatherValidationText.Foreground = ThemeBrush("WarningBrush");
             WeatherValidationText.Text = "⚠️ Impossible de valider (pas de connexion). Valeur restaurée.";
         }
         finally
@@ -939,8 +948,8 @@ public partial class SettingsWindow : Window
     {
         AiTestBtn.IsEnabled = false;
         AiTestResultPanel.Visibility = Visibility.Visible;
-        AiTestResultPanel.Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x1A));
-        AiTestResultText.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xB9, 0x00));
+        AiTestResultPanel.Background = ThemeBrush("WarningSurfaceBrush");
+        AiTestResultText.Foreground = ThemeBrush("WarningBrush");
         AiTestResultText.Text = "🔄 Test de connexion en cours...";
         
         try
@@ -955,21 +964,21 @@ public partial class SettingsWindow : Window
             
             if (success)
             {
-                AiTestResultPanel.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x2D, 0x1A));
-                AiTestResultText.Foreground = new SolidColorBrush(Color.FromRgb(0x4C, 0xAF, 0x50));
+                AiTestResultPanel.Background = ThemeBrush("SuccessSurfaceBrush");
+                AiTestResultText.Foreground = ThemeBrush("SuccessBrush");
                 AiTestResultText.Text = message;
             }
             else
             {
-                AiTestResultPanel.Background = new SolidColorBrush(Color.FromRgb(0x3D, 0x1A, 0x1A));
-                AiTestResultText.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0x11, 0x23));
+                AiTestResultPanel.Background = ThemeBrush("DangerSurfaceBrush");
+                AiTestResultText.Foreground = ThemeBrush("DangerBrush");
                 AiTestResultText.Text = $"❌ {message}";
             }
         }
         catch (Exception ex)
         {
-            AiTestResultPanel.Background = new SolidColorBrush(Color.FromRgb(0x3D, 0x1A, 0x1A));
-            AiTestResultText.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0x11, 0x23));
+            AiTestResultPanel.Background = ThemeBrush("DangerSurfaceBrush");
+            AiTestResultText.Foreground = ThemeBrush("DangerBrush");
             AiTestResultText.Text = $"❌ Erreur : {ex.Message}";
         }
         finally

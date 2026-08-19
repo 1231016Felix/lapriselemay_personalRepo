@@ -1003,7 +1003,18 @@ public partial class LauncherWindow : Window
             
             var menuItem = new MenuItem
             {
-                Header = $"{action.Icon} {action.Name}",
+                Header = action.Name,
+                // Glyphe MDL2 dans la zone icône : hérite du Foreground de l'item
+                // (donc suit le thème, et devient rouge sur « Supprimer »).
+                Icon = new TextBlock
+                {
+                    Text = action.Icon,
+                    FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"),
+                    FontSize = 14,
+                    Width = 18,
+                    TextAlignment = TextAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                },
                 Style = menuItemStyle,
                 InputGestureText = action.Shortcut,
                 Tag = action

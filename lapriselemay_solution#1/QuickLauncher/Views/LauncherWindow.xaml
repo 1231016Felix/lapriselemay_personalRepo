@@ -122,14 +122,20 @@
                                 Margin="2">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
+                                <!-- Icône MDL2 (teintée par le Foreground de l'item, y compris le rouge Supprimer) -->
                                 <ContentPresenter Grid.Column="0"
+                                                  ContentSource="Icon"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,10,0"/>
+                                <ContentPresenter Grid.Column="1"
                                                   ContentSource="Header"
                                                   RecognizesAccessKey="True"
                                                   VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="1"
+                                <TextBlock Grid.Column="2"
                                            Text="{TemplateBinding InputGestureText}"
                                            Foreground="{DynamicResource TextTertiaryBrush}"
                                            FontSize="11"

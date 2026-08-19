@@ -6,7 +6,7 @@
         Width="850" Height="650"
         MinWidth="700" MinHeight="500"
         WindowStartupLocation="CenterScreen"
-        Background="#1E1E1E"
+        Background="{DynamicResource BackgroundBrush}"
         ResizeMode="CanResize">
     
     <Window.Resources>
@@ -18,20 +18,20 @@
         </CollectionViewSource>
         
         <Style x:Key="SettingsCheckBox" TargetType="CheckBox">
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
             <Setter Property="Margin" Value="0,6"/>
             <Setter Property="FontSize" Value="13"/>
         </Style>
         
         <Style x:Key="SectionLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#0078D4"/>
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Margin" Value="0,20,0,8"/>
         </Style>
         
         <Style x:Key="SubSectionLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#888"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Margin" Value="0,12,0,6"/>
@@ -39,29 +39,31 @@
         
         <Style x:Key="ActionButton" TargetType="Button">
             <Setter Property="Padding" Value="16,8"/>
-            <Setter Property="Background" Value="#3E3E3E"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource HoverBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#4E4E4E"/>
+                    <Setter Property="Background" Value="{DynamicResource SelectionBrush}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
         
         <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource ActionButton}">
-            <Setter Property="Background" Value="#0078D4"/>
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+            <!-- Blanc explicite : lisible sur toutes les couleurs d'accent -->
+            <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#1084D8"/>
+                    <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
         
         <Style TargetType="TabItem">
-            <Setter Property="Foreground" Value="#AAA"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Padding" Value="20,12"/>
             <Setter Property="Margin" Value="2,0"/>
@@ -82,11 +84,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="#3E3E3E"/>
-                                <Setter Property="Foreground" Value="White"/>
+                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource HoverBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="#333"/>
+                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource SurfaceBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -95,7 +97,7 @@
         </Style>
         
         <Style x:Key="SettingsCard" TargetType="Border">
-            <Setter Property="Background" Value="#2D2D2D"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Padding" Value="15"/>
             <Setter Property="Margin" Value="0,8,0,0"/>
@@ -108,27 +110,27 @@
                     <ColumnDefinition/>
                     <ColumnDefinition Width="20"/>
                 </Grid.ColumnDefinitions>
-                <Border x:Name="Border" Grid.ColumnSpan="2" Background="#1E1E1E" BorderBrush="#555" BorderThickness="1" CornerRadius="3"/>
+                <Border x:Name="Border" Grid.ColumnSpan="2" Background="{DynamicResource BackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="3"/>
                 <Border Grid.Column="0" Background="Transparent" Margin="1"/>
-                <Path x:Name="Arrow" Grid.Column="1" Fill="#AAA" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M 0 0 L 4 4 L 8 0 Z"/>
+                <Path x:Name="Arrow" Grid.Column="1" Fill="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M 0 0 L 4 4 L 8 0 Z"/>
             </Grid>
             <ControlTemplate.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter TargetName="Border" Property="BorderBrush" Value="#0078D4"/>
-                    <Setter TargetName="Arrow" Property="Fill" Value="White"/>
+                    <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                    <Setter TargetName="Arrow" Property="Fill" Value="{DynamicResource TextPrimaryBrush}"/>
                 </Trigger>
                 <Trigger Property="IsChecked" Value="True">
-                    <Setter TargetName="Border" Property="Background" Value="#2A2A2A"/>
-                    <Setter TargetName="Border" Property="BorderBrush" Value="#0078D4"/>
+                    <Setter TargetName="Border" Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                    <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                 </Trigger>
             </ControlTemplate.Triggers>
         </ControlTemplate>
 
         <!-- Style dark complet pour les ComboBox -->
         <Style TargetType="ComboBox">
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Background" Value="#1E1E1E"/>
-            <Setter Property="BorderBrush" Value="#555"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource BackgroundBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Padding" Value="6,4"/>
@@ -155,7 +157,7 @@
                                               HorizontalAlignment="Left">
                                 <ContentPresenter.Resources>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="White"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                                     </Style>
                                 </ContentPresenter.Resources>
                             </ContentPresenter>
@@ -164,8 +166,8 @@
                                      IsReadOnly="{TemplateBinding IsReadOnly}"
                                      Visibility="Hidden"
                                      Background="Transparent"
-                                     Foreground="White"
-                                     CaretBrush="White"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
+                                     CaretBrush="{DynamicResource TextPrimaryBrush}"
                                      HorizontalAlignment="Left"
                                      VerticalAlignment="Center"
                                      Margin="8,4,24,4"
@@ -181,8 +183,8 @@
                                       MinWidth="{TemplateBinding ActualWidth}"
                                       MaxHeight="{TemplateBinding MaxDropDownHeight}">
                                     <Border x:Name="DropDownBorder"
-                                            Background="#2A2A2A"
-                                            BorderBrush="#555"
+                                            Background="{DynamicResource SurfaceBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}"
                                             BorderThickness="1"
                                             CornerRadius="0,0,3,3"/>
                                     <ScrollViewer Margin="1" SnapsToDevicePixels="True">
@@ -204,8 +206,8 @@
 
         <!-- Style dark pour les items du dropdown -->
         <Style TargetType="ComboBoxItem">
-            <Setter Property="Background" Value="#2A2A2A"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
             <Setter Property="Padding" Value="8,5"/>
             <Setter Property="SnapsToDevicePixels" Value="True"/>
             <Setter Property="Template">
@@ -218,17 +220,17 @@
                             <ContentPresenter VerticalAlignment="Center">
                                 <ContentPresenter.Resources>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="White"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                                     </Style>
                                 </ContentPresenter.Resources>
                             </ContentPresenter>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#0078D4"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentBrush}"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#3E3E3E"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -251,20 +253,26 @@
         
         <!-- Titre -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
-            <TextBlock Text="⚙️" FontSize="28" VerticalAlignment="Center" Margin="0,0,10,0"/>
+            <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="26" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,12,0"/>
             <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="Paramètres" FontSize="26" FontWeight="Bold" Foreground="White"/>
-                <TextBlock Text="Personnalisez QuickLauncher selon vos préférences" Foreground="#888" FontSize="11"/>
+                <TextBlock Text="Paramètres" FontSize="26" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                <TextBlock Text="Personnalisez QuickLauncher selon vos préférences" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
             </StackPanel>
         </StackPanel>
         
         <!-- Onglets -->
-        <TabControl x:Name="MainTabControl" Grid.Row="1" Background="#252525" BorderThickness="0" SelectionChanged="MainTabControl_SelectionChanged">
+        <TabControl x:Name="MainTabControl" Grid.Row="1" Background="{DynamicResource SurfaceAltBrush}" BorderThickness="0" SelectionChanged="MainTabControl_SelectionChanged">
             
             <!-- ═══════════════════════════════════════════════════════════ -->
             <!-- ONGLET 1: GÉNÉRAL (Démarrage + Comportement + Apparence + Raccourcis) -->
             <!-- ═══════════════════════════════════════════════════════════ -->
-            <TabItem Header="🏠 Général">
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE80F;" FontFamily="Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                        <TextBlock Text="Général" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20" PreviewMouseWheel="TabScrollViewer_PreviewMouseWheel">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -289,8 +297,8 @@
                             
                             <TextBlock Text="Résultats" Style="{StaticResource SubSectionLabel}"/>
                             <StackPanel Orientation="Horizontal" Margin="0,5">
-                                <TextBlock Text="Max résultats: " Foreground="White" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="MaxResultsValue" Text="8" Foreground="#0078D4" FontWeight="Bold" VerticalAlignment="Center" Width="25"/>
+                                <TextBlock Text="Max résultats: " Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="MaxResultsValue" Text="8" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" VerticalAlignment="Center" Width="25"/>
                             </StackPanel>
                             <Slider x:Name="MaxResultsSlider" Minimum="3" Maximum="15" Value="8" Width="250" HorizontalAlignment="Left" ValueChanged="MaxResultsSlider_ValueChanged"/>
                             
@@ -298,8 +306,8 @@
                             <TextBlock Text="Historique" Style="{StaticResource SectionLabel}"/>
                             <CheckBox x:Name="EnableSearchHistoryCheck" Content="Activer l'historique" Style="{StaticResource SettingsCheckBox}" Checked="CheckBox_Changed" Unchecked="CheckBox_Changed"/>
                             <StackPanel Orientation="Horizontal" Margin="0,5">
-                                <TextBlock Text="Max entrées: " Foreground="White" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="MaxHistoryValue" Text="10" Foreground="#0078D4" FontWeight="Bold" VerticalAlignment="Center" Width="25"/>
+                                <TextBlock Text="Max entrées: " Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="MaxHistoryValue" Text="10" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" VerticalAlignment="Center" Width="25"/>
                             </StackPanel>
                             <Slider x:Name="MaxHistorySlider" Minimum="5" Maximum="30" Value="10" Width="250" HorizontalAlignment="Left" ValueChanged="MaxHistorySlider_ValueChanged"/>
                             <Button Content="🗑️ Effacer l'historique" Click="ClearHistory_Click" Style="{StaticResource ActionButton}" HorizontalAlignment="Left" Margin="0,8,0,0"/>
@@ -315,12 +323,12 @@
                                         <StackPanel>
                                             <TextBlock Text="Bonus de récence" FontWeight="Bold" Margin="0,0,0,5"/>
                                             <TextBlock TextWrapping="Wrap" Text="Lorsque cette option est activée, les applications et fichiers que vous avez utilisés récemment apparaîtront plus haut dans les résultats de recherche."/>
-                                            <TextBlock TextWrapping="Wrap" Margin="0,8,0,0" Foreground="#888" Text="Exemple: Si vous utilisez Chrome tous les jours, il apparaîtra avant Firefox même si vous tapez 'fire'."/>
+                                            <TextBlock TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{DynamicResource TextTertiaryBrush}" Text="Exemple: Si vous utilisez Chrome tous les jours, il apparaîtra avant Firefox même si vous tapez 'fire'."/>
                                         </StackPanel>
                                     </ToolTip>
                                 </CheckBox.ToolTip>
                             </CheckBox>
-                            <TextBlock Text="Les éléments utilisés récemment remontent dans les résultats" Foreground="#666" FontSize="10" Margin="20,0,0,0" TextWrapping="Wrap"/>
+                            <TextBlock Text="Les éléments utilisés récemment remontent dans les résultats" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10" Margin="20,0,0,0" TextWrapping="Wrap"/>
                         </StackPanel>
                         
                         <!-- Colonne droite -->
@@ -338,9 +346,9 @@
                             
                             <!-- Heures pour mode Auto -->
                             <StackPanel x:Name="AutoThemePanel" Margin="15,8,0,0" Visibility="Collapsed">
-                                <TextBlock Text="Plage horaire mode clair:" Foreground="#888" FontSize="11" Margin="0,0,0,4"/>
+                                <TextBlock Text="Plage horaire mode clair:" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" Margin="0,0,0,4"/>
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="De" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBlock Text="De" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                     <ComboBox x:Name="LightStartCombo" Width="70" SelectionChanged="AutoThemeTime_Changed">
                                         <ComboBoxItem Content="05:00" Tag="05:00"/>
                                         <ComboBoxItem Content="06:00" Tag="06:00"/>
@@ -348,7 +356,7 @@
                                         <ComboBoxItem Content="08:00" Tag="08:00"/>
                                         <ComboBoxItem Content="09:00" Tag="09:00"/>
                                     </ComboBox>
-                                    <TextBlock Text="à" Foreground="White" VerticalAlignment="Center" Margin="8,0"/>
+                                    <TextBlock Text="à" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="8,0"/>
                                     <ComboBox x:Name="DarkStartCombo" Width="70" SelectionChanged="AutoThemeTime_Changed">
                                         <ComboBoxItem Content="17:00" Tag="17:00"/>
                                         <ComboBoxItem Content="18:00" Tag="18:00"/>
@@ -361,13 +369,13 @@
                             </StackPanel>
                             
                             <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                                <TextBlock Text="Opacité: " Foreground="White" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="OpacityValue" Text="100%" Foreground="#0078D4" FontWeight="Bold" VerticalAlignment="Center"/>
+                                <TextBlock Text="Opacité: " Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="OpacityValue" Text="100%" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" VerticalAlignment="Center"/>
                             </StackPanel>
                             <Slider x:Name="OpacitySlider" Minimum="0.5" Maximum="1.0" Value="1.0" Width="250" HorizontalAlignment="Left" ValueChanged="OpacitySlider_ValueChanged"/>
                             
                             <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                <Border x:Name="ColorPreview" Width="24" Height="24" CornerRadius="4" Background="#0078D4" Margin="0,0,8,0"/>
+                                <Border x:Name="ColorPreview" Width="24" Height="24" CornerRadius="4" Background="{DynamicResource AccentBrush}" Margin="0,0,8,0"/>
                                 <ComboBox x:Name="AccentColorCombo" Width="150" SelectionChanged="AccentColorCombo_SelectionChanged">
                                     <ComboBoxItem Content="Bleu" Tag="#0078D4"/>
                                     <ComboBoxItem Content="Vert" Tag="#107C10"/>
@@ -387,7 +395,7 @@
                             <TextBlock Text="Animations (ouverture/fermeture)" Style="{StaticResource SubSectionLabel}" Margin="0,12,0,4"/>
                             <CheckBox x:Name="EnableAnimationsCheck" Content="Activer les animations" Style="{StaticResource SettingsCheckBox}" ToolTip="Active les animations de transition à l'ouverture et à la fermeture de la fenêtre et des résultats" Checked="CheckBox_Changed" Unchecked="CheckBox_Changed"/>
                             <StackPanel x:Name="AnimationSpeedPanel" Margin="0,4,0,0">
-                                <TextBlock Text="Style" Foreground="White" FontSize="12" Margin="0,0,0,4"/>
+                                <TextBlock Text="Style" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="12" Margin="0,0,0,4"/>
                                 <ComboBox x:Name="AnimationStyleCombo" Width="250" HorizontalAlignment="Left" SelectionChanged="AnimationStyleCombo_SelectionChanged">
                                     <ComboBoxItem Content="Fade + Slide — fondu et glissement" Tag="FadeSlide"/>
                                     <ComboBoxItem Content="Fade — fondu simple" Tag="Fade"/>
@@ -396,23 +404,23 @@
                                     <ComboBoxItem Content="Pop — zoom avec rebond" Tag="Pop"/>
                                 </ComboBox>
                                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                    <TextBlock Text="Durée: " Foreground="White" VerticalAlignment="Center"/>
-                                    <TextBlock x:Name="AnimationSpeedValue" Text="140 ms" Foreground="#0078D4" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Durée: " Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="AnimationSpeedValue" Text="140 ms" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" VerticalAlignment="Center"/>
                                 </StackPanel>
                                 <Slider x:Name="AnimationSpeedSlider" Minimum="50" Maximum="400" Value="140" Width="250" HorizontalAlignment="Left" IsSnapToTickEnabled="True" TickFrequency="10" ValueChanged="AnimationSpeedSlider_ValueChanged"/>
-                                <TextBlock Text="50 = rapide · 400 = lent" Foreground="#666" FontSize="10" Margin="0,2,0,0"/>
+                                <TextBlock Text="50 = rapide · 400 = lent" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10" Margin="0,2,0,0"/>
                             </StackPanel>
                             
                             <!-- Raccourci clavier -->
                             <TextBlock Text="Raccourci global" Style="{StaticResource SectionLabel}"/>
                             <Border Style="{StaticResource SettingsCard}">
                                 <StackPanel>
-                                    <TextBlock x:Name="CurrentHotkeyDisplay" Text="Alt + Space" FontSize="18" FontWeight="Bold" Foreground="#0078D4" Margin="0,0,0,10"/>
+                                    <TextBlock x:Name="CurrentHotkeyDisplay" Text="Alt + Space" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" Margin="0,0,0,10"/>
                                     <StackPanel Orientation="Horizontal">
-                                        <CheckBox x:Name="HotkeyAltCheck" Content="Alt" Foreground="White" FontSize="13" Margin="0,0,15,0" VerticalAlignment="Center" Checked="Hotkey_Changed" Unchecked="Hotkey_Changed"/>
-                                        <CheckBox x:Name="HotkeyCtrlCheck" Content="Ctrl" Foreground="White" FontSize="13" Margin="0,0,15,0" VerticalAlignment="Center" Checked="Hotkey_Changed" Unchecked="Hotkey_Changed"/>
-                                        <CheckBox x:Name="HotkeyShiftCheck" Content="Shift" Foreground="White" FontSize="13" Margin="0,0,15,0" VerticalAlignment="Center" Checked="Hotkey_Changed" Unchecked="Hotkey_Changed"/>
-                                        <CheckBox x:Name="HotkeyWinCheck" Content="Win" Foreground="White" FontSize="13" VerticalAlignment="Center" Checked="Hotkey_Changed" Unchecked="Hotkey_Changed"/>
+                                        <CheckBox x:Name="HotkeyAltCheck" Content="Alt" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="13" Margin="0,0,15,0" VerticalAlignment="Center" Checked="Hotkey_Changed" Unchecked="Hotkey_Changed"/>
+                                        <CheckBox x:Name="HotkeyCtrlCheck" Content="Ctrl" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="13" Margin="0,0,15,0" VerticalAlignment="Center" Checked="Hotkey_Changed" Unchecked="Hotkey_Changed"/>
+                                        <CheckBox x:Name="HotkeyShiftCheck" Content="Shift" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="13" Margin="0,0,15,0" VerticalAlignment="Center" Checked="Hotkey_Changed" Unchecked="Hotkey_Changed"/>
+                                        <CheckBox x:Name="HotkeyWinCheck" Content="Win" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="13" VerticalAlignment="Center" Checked="Hotkey_Changed" Unchecked="Hotkey_Changed"/>
                                     </StackPanel>
                                     <ComboBox x:Name="HotkeyKeyCombo" Width="100" HorizontalAlignment="Left" Margin="0,8,0,0" SelectionChanged="HotkeyKeyCombo_SelectionChanged">
                                         <ComboBoxItem Content="Space" Tag="Space"/>
@@ -433,7 +441,13 @@
             <!-- ═══════════════════════════════════════════════════════════ -->
             <!-- ONGLET 2: INDEXATION (Dossiers + Extensions + Navigateurs + Recherche système) -->
             <!-- ═══════════════════════════════════════════════════════════ -->
-            <TabItem Header="📁 Indexation">
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                        <TextBlock Text="Indexation" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20" PreviewMouseWheel="TabScrollViewer_PreviewMouseWheel">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -446,7 +460,7 @@
                         <StackPanel Grid.Column="0">
                             <!-- Dossiers indexés -->
                             <TextBlock Text="Dossiers indexés" Style="{StaticResource SectionLabel}" Margin="0,0,0,8"/>
-                            <ListBox x:Name="IndexedFoldersList" Height="180" Background="#2D2D2D" Foreground="White" BorderThickness="0"/>
+                            <ListBox x:Name="IndexedFoldersList" Height="180" Background="{DynamicResource SurfaceBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderThickness="0"/>
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                 <Button Content="➕" Click="AddFolder_Click" Style="{StaticResource PrimaryButton}" Padding="10,6" Margin="0,0,5,0" ToolTip="Ajouter"/>
                                 <Button Content="➖" Click="RemoveFolder_Click" Style="{StaticResource ActionButton}" Padding="10,6" Margin="0,0,5,0" ToolTip="Supprimer"/>
@@ -455,14 +469,14 @@
                             
                             <!-- Options -->
                             <TextBlock Text="Profondeur d'indexation" Style="{StaticResource SectionLabel}"/>
-                            <TextBlock Text="Nombre de niveaux de sous-dossiers explorés au démarrage pour construire l'index de recherche." Foreground="#888" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                            <TextBlock Text="Nombre de niveaux de sous-dossiers explorés au démarrage pour construire l'index de recherche." Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6"/>
                             <StackPanel Orientation="Horizontal" Margin="0,5">
-                                <TextBlock Text="Profondeur: " Foreground="White" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="SearchDepthValue" Text="5" Foreground="#0078D4" FontWeight="Bold" VerticalAlignment="Center" Width="25"/>
-                                <TextBlock Text="niveaux" Foreground="#888" VerticalAlignment="Center"/>
+                                <TextBlock Text="Profondeur: " Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="SearchDepthValue" Text="5" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" VerticalAlignment="Center" Width="25"/>
+                                <TextBlock Text="niveaux" Foreground="{DynamicResource TextTertiaryBrush}" VerticalAlignment="Center"/>
                             </StackPanel>
                             <Slider x:Name="SearchDepthSlider" Minimum="1" Maximum="10" Value="5" Width="250" HorizontalAlignment="Left" ValueChanged="SearchDepthSlider_ValueChanged"/>
-                            <TextBlock x:Name="SearchDepthHint" Text="" Foreground="#666" FontSize="10" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                            <TextBlock x:Name="SearchDepthHint" Text="" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10" TextWrapping="Wrap" Margin="0,2,0,0"/>
                             <CheckBox x:Name="IndexHiddenFoldersCheck" Content="Indexer dossiers cachés" Style="{StaticResource SettingsCheckBox}" Checked="CheckBox_Changed" Unchecked="CheckBox_Changed"/>
                             
                             <!-- Réindexation -->
@@ -470,8 +484,8 @@
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="🔄" FontSize="16" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                     <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="Réindexer" Foreground="White" FontWeight="SemiBold"/>
-                                        <TextBlock Text="Reconstruire l'index complet" Foreground="#888" FontSize="10"/>
+                                        <TextBlock Text="Réindexer" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold"/>
+                                        <TextBlock Text="Reconstruire l'index complet" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10"/>
                                     </StackPanel>
                                     <Button Content="Go" Click="Reindex_Click" Style="{StaticResource ActionButton}" VerticalAlignment="Center" Margin="15,0,0,0" Padding="12,6"/>
                                 </StackPanel>
@@ -481,14 +495,14 @@
                             <TextBlock Text="Réindexation automatique" Style="{StaticResource SectionLabel}"/>
                             <CheckBox x:Name="AutoReindexEnabledCheck" Content="Activer" Style="{StaticResource SettingsCheckBox}" Checked="AutoReindexEnabled_Changed" Unchecked="AutoReindexEnabled_Changed"/>
                             <StackPanel x:Name="AutoReindexOptionsPanel" Margin="15,0,0,0">
-                                <RadioButton x:Name="ReindexIntervalRadio" Content="Intervalle" Foreground="White" Margin="0,3" GroupName="ReindexMode" Checked="ReindexMode_Changed"/>
+                                <RadioButton x:Name="ReindexIntervalRadio" Content="Intervalle" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,3" GroupName="ReindexMode" Checked="ReindexMode_Changed"/>
                                 <ComboBox x:Name="ReindexIntervalCombo" Width="120" Margin="20,3,0,3" HorizontalAlignment="Left" SelectionChanged="ReindexIntervalCombo_SelectionChanged">
                                     <ComboBoxItem Content="15 min" Tag="15"/>
                                     <ComboBoxItem Content="30 min" Tag="30"/>
                                     <ComboBoxItem Content="1 heure" Tag="60"/>
                                     <ComboBoxItem Content="2 heures" Tag="120"/>
                                 </ComboBox>
-                                <RadioButton x:Name="ReindexTimeRadio" Content="Heure fixe" Foreground="White" Margin="0,3" GroupName="ReindexMode" Checked="ReindexMode_Changed"/>
+                                <RadioButton x:Name="ReindexTimeRadio" Content="Heure fixe" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,3" GroupName="ReindexMode" Checked="ReindexMode_Changed"/>
                                 <StackPanel Orientation="Horizontal" Margin="20,3,0,0">
                                     <ComboBox x:Name="ReindexHourCombo" Width="55" SelectionChanged="ReindexTimeCombo_SelectionChanged">
                                         <ComboBoxItem Content="00h" Tag="00"/>
@@ -497,7 +511,7 @@
                                         <ComboBoxItem Content="12h" Tag="12"/>
                                         <ComboBoxItem Content="18h" Tag="18"/>
                                     </ComboBox>
-                                    <TextBlock Text=":" Foreground="#888" VerticalAlignment="Center" Margin="3,0"/>
+                                    <TextBlock Text=":" Foreground="{DynamicResource TextTertiaryBrush}" VerticalAlignment="Center" Margin="3,0"/>
                                     <ComboBox x:Name="ReindexMinuteCombo" Width="55" SelectionChanged="ReindexTimeCombo_SelectionChanged">
                                         <ComboBoxItem Content="00" Tag="00"/>
                                         <ComboBoxItem Content="30" Tag="30"/>
@@ -513,7 +527,7 @@
                             <ItemsControl x:Name="BrowsersList">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Background="#2A2A2A" CornerRadius="4" Padding="10" Margin="0,0,0,5">
+                                        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="4" Padding="10" Margin="0,0,0,5">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="30"/>
@@ -522,8 +536,8 @@
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="{Binding Icon}" FontSize="18" VerticalAlignment="Center"/>
                                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="5,0">
-                                                    <TextBlock Text="{Binding Name}" Foreground="White" FontSize="12"/>
-                                                    <TextBlock Foreground="#666" FontSize="10">
+                                                    <TextBlock Text="{Binding Name}" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="12"/>
+                                                    <TextBlock Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10">
                                                         <TextBlock.Style>
                                                             <Style TargetType="TextBlock">
                                                                 <Setter Property="Text" Value="{Binding BookmarkCount, StringFormat='{}{0} favoris'}"/>
@@ -536,7 +550,7 @@
                                                         </TextBlock.Style>
                                                     </TextBlock>
                                                 </StackPanel>
-                                                <Button Grid.Column="2" Content="📥" Tag="{Binding Name}" Click="ImportBrowserBookmarks_Click" Padding="8,4" Background="#0078D4" Foreground="White" BorderThickness="0" Cursor="Hand" ToolTip="Importer">
+                                                <Button Grid.Column="2" Content="📥" Tag="{Binding Name}" Click="ImportBrowserBookmarks_Click" Padding="8,4" Background="{DynamicResource AccentBrush}" Foreground="White" BorderThickness="0" Cursor="Hand" ToolTip="Importer">
                                                     <Button.Style>
                                                         <Style TargetType="Button">
                                                             <Style.Triggers>
@@ -566,43 +580,43 @@
                                     </Grid.ColumnDefinitions>
                                     <TextBlock x:Name="SearchEngineIcon" Text="⚡" FontSize="20" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock x:Name="SearchEngineName" Text="Everything" Foreground="White" FontWeight="SemiBold" FontSize="12"/>
-                                        <TextBlock x:Name="SearchEngineDescription" Text="Recherche ultra-rapide" Foreground="#888" FontSize="10"/>
+                                        <TextBlock x:Name="SearchEngineName" Text="Everything" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold" FontSize="12"/>
+                                        <TextBlock x:Name="SearchEngineDescription" Text="Recherche ultra-rapide" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10"/>
                                     </StackPanel>
                                     <Border Grid.Column="2" x:Name="SearchEngineStatusBadge" CornerRadius="3" Padding="8,3" VerticalAlignment="Center">
                                         <TextBlock x:Name="SearchEngineStatusText" Text="Optimal" FontSize="10" FontWeight="SemiBold"/>
                                     </Border>
                                 </Grid>
                             </Border>
-                            <Border x:Name="SearchEngineRecommendation" Background="#1E2A3E" CornerRadius="4" Padding="8" Margin="0,5,0,0" Visibility="Collapsed">
-                                <TextBlock x:Name="SearchEngineRecommendationText" Foreground="#64B5F6" TextWrapping="Wrap" FontSize="10"/>
+                            <Border x:Name="SearchEngineRecommendation" Background="{DynamicResource SelectionBrush}" CornerRadius="4" Padding="8" Margin="0,5,0,0" Visibility="Collapsed">
+                                <TextBlock x:Name="SearchEngineRecommendationText" Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" FontSize="10"/>
                             </Border>
-                            <Border x:Name="WindowsSearchWarning" Background="#2A2A1E" CornerRadius="4" Padding="8" Margin="0,5,0,0" Visibility="Collapsed" Cursor="Hand" MouseLeftButtonUp="OpenWindowsIndexingSettings_Click">
+                            <Border x:Name="WindowsSearchWarning" Background="{DynamicResource WarningSurfaceBrush}" CornerRadius="4" Padding="8" Margin="0,5,0,0" Visibility="Collapsed" Cursor="Hand" MouseLeftButtonUp="OpenWindowsIndexingSettings_Click">
                                 <StackPanel>
-                                    <TextBlock Text="⚠ Les résultats dépendent de la configuration d'indexation de Windows." Foreground="#FFB74D" TextWrapping="Wrap" FontSize="10"/>
-                                    <TextBlock Text="Vérifiez les dossiers inclus et exclus dans les paramètres d'indexation Windows. Cliquez ici pour ouvrir les paramètres." Foreground="#999" TextWrapping="Wrap" FontSize="10" Margin="0,3,0,0"/>
+                                    <TextBlock Text="⚠ Les résultats dépendent de la configuration d'indexation de Windows." Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap" FontSize="10"/>
+                                    <TextBlock Text="Vérifiez les dossiers inclus et exclus dans les paramètres d'indexation Windows. Cliquez ici pour ouvrir les paramètres." Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap" FontSize="10" Margin="0,3,0,0"/>
                                 </StackPanel>
                             </Border>
-                            <Border x:Name="DirectSearchWarning" Background="#2A1E1E" CornerRadius="4" Padding="8" Margin="0,5,0,0" Visibility="Collapsed">
+                            <Border x:Name="DirectSearchWarning" Background="{DynamicResource WarningSurfaceBrush}" CornerRadius="4" Padding="8" Margin="0,5,0,0" Visibility="Collapsed">
                                 <StackPanel>
-                                    <TextBlock Text="⚠ La recherche directe est limitée aux dossiers suivants :" Foreground="#FFB74D" TextWrapping="Wrap" FontSize="10"/>
-                                    <TextBlock x:Name="DirectSearchFoldersList" Foreground="#999" TextWrapping="Wrap" FontSize="10" Margin="0,3,0,0"/>
+                                    <TextBlock Text="⚠ La recherche directe est limitée aux dossiers suivants :" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap" FontSize="10"/>
+                                    <TextBlock x:Name="DirectSearchFoldersList" Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap" FontSize="10" Margin="0,3,0,0"/>
                                 </StackPanel>
                             </Border>
                             
                             <TextBlock Text="Profondeur de recherche" Style="{StaticResource SubSectionLabel}" Margin="0,10,0,2"/>
-                            <TextBlock Text="Nombre de niveaux de sous-dossiers parcourus en temps réel par la commande :find. Plus la valeur est haute, plus la recherche est exhaustive mais lente." Foreground="#888" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                            <TextBlock Text="Nombre de niveaux de sous-dossiers parcourus en temps réel par la commande :find. Plus la valeur est haute, plus la recherche est exhaustive mais lente." Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6"/>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
-                                <TextBlock Text="Profondeur: " Foreground="White" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="SystemSearchDepthValue" Text="5" Foreground="#0078D4" FontWeight="Bold" VerticalAlignment="Center" Width="25"/>
-                                <TextBlock Text="niveaux" Foreground="#888" VerticalAlignment="Center"/>
+                                <TextBlock Text="Profondeur: " Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="SystemSearchDepthValue" Text="5" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" VerticalAlignment="Center" Width="25"/>
+                                <TextBlock Text="niveaux" Foreground="{DynamicResource TextTertiaryBrush}" VerticalAlignment="Center"/>
                             </StackPanel>
                             <Slider x:Name="SystemSearchDepthSlider" Minimum="2" Maximum="10" Value="5" Width="250" HorizontalAlignment="Left" ValueChanged="SystemSearchDepthSlider_ValueChanged"/>
-                            <TextBlock x:Name="SystemSearchDepthHint" Text="" Foreground="#666" FontSize="10" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                            <TextBlock x:Name="SystemSearchDepthHint" Text="" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10" TextWrapping="Wrap" Margin="0,2,0,0"/>
                             
                             <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                                 <Button Content="🗑️ Vider cache" Click="ClearSearchCache_Click" Style="{StaticResource ActionButton}" Padding="10,6"/>
-                                <TextBlock x:Name="SearchCacheStats" Text="" Foreground="#666" FontSize="10" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                <TextBlock x:Name="SearchCacheStats" Text="" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10" VerticalAlignment="Center" Margin="10,0,0,0"/>
                             </StackPanel>
                         </StackPanel>
                     </Grid>
@@ -612,7 +626,13 @@
             <!-- ═══════════════════════════════════════════════════════════ -->
             <!-- ONGLET 3: COMMANDES (Recherche Web + Contrôle Système) -->
             <!-- ═══════════════════════════════════════════════════════════ -->
-            <TabItem Header="🔍 Commandes">
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                        <TextBlock Text="Commandes" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20" PreviewMouseWheel="TabScrollViewer_PreviewMouseWheel">
                     <StackPanel>
                     <Grid>
@@ -625,9 +645,9 @@
                         <!-- Colonne gauche: Recherche Web -->
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="Recherche Web" Style="{StaticResource SectionLabel}" Margin="0,0,0,8"/>
-                            <TextBlock Text="Tapez le préfixe + espace + recherche (ex: g pizza)" Foreground="#888" FontSize="11" Margin="0,0,0,8"/>
+                            <TextBlock Text="Tapez le préfixe + espace + recherche (ex: g pizza)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" Margin="0,0,0,8"/>
                             
-                            <ListBox x:Name="SearchEnginesList" Height="180" Background="#2D2D2D" Foreground="White" BorderThickness="0">
+                            <ListBox x:Name="SearchEnginesList" Height="180" Background="{DynamicResource SurfaceBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderThickness="0">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <Grid Margin="5,3">
@@ -635,7 +655,7 @@
                                                 <ColumnDefinition Width="45"/>
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
-                                            <Border Background="#0078D4" CornerRadius="3" Padding="6,2" HorizontalAlignment="Left">
+                                            <Border Background="{DynamicResource AccentBrush}" CornerRadius="3" Padding="6,2" HorizontalAlignment="Left">
                                                 <TextBlock Text="{Binding Prefix}" FontWeight="Bold" Foreground="White" FontSize="11"/>
                                             </Border>
                                             <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" Margin="8,0" FontSize="12"/>
@@ -648,17 +668,17 @@
                             <TextBlock Text="Intégrations web" Style="{StaticResource SectionLabel}"/>
                             <Border Style="{StaticResource SettingsCard}">
                                 <StackPanel>
-                                    <TextBlock Text="Météo (:weather)" Foreground="White" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
+                                    <TextBlock Text="Météo (:weather)" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                        <TextBlock Text="Ville par défaut:" Foreground="#AAA" FontSize="12" VerticalAlignment="Center" Width="110"/>
-                                        <TextBox x:Name="WeatherCityBox" Width="160" Background="#1E1E1E" Foreground="White" BorderBrush="#555" BorderThickness="1" Padding="6,4" FontSize="12" KeyDown="WeatherCityBox_KeyDown" LostFocus="WeatherCityBox_LostFocus"/>
-                                        <Button x:Name="WeatherValidateBtn" Content="✓" Click="WeatherValidateBtn_Click" Background="#3E3E3E" Foreground="White" Padding="8,4" BorderThickness="0" Cursor="Hand" Margin="4,0,0,0" ToolTip="Valider la ville" FontWeight="Bold"/>
+                                        <TextBlock Text="Ville par défaut:" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" VerticalAlignment="Center" Width="110"/>
+                                        <TextBox x:Name="WeatherCityBox" Width="160" Background="{DynamicResource BackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="6,4" FontSize="12" KeyDown="WeatherCityBox_KeyDown" LostFocus="WeatherCityBox_LostFocus"/>
+                                        <Button x:Name="WeatherValidateBtn" Content="✓" Click="WeatherValidateBtn_Click" Background="{DynamicResource HoverBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="8,4" BorderThickness="0" Cursor="Hand" Margin="4,0,0,0" ToolTip="Valider la ville" FontWeight="Bold"/>
                                     </StackPanel>
                                     <Border x:Name="WeatherValidationPanel" CornerRadius="4" Padding="8,4" Margin="0,4,0,0" Visibility="Collapsed">
                                         <TextBlock x:Name="WeatherValidationText" FontSize="11" TextWrapping="Wrap"/>
                                     </Border>
                                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                                        <TextBlock Text="Unité:" Foreground="#AAA" FontSize="12" VerticalAlignment="Center" Width="110"/>
+                                        <TextBlock Text="Unité:" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" VerticalAlignment="Center" Width="110"/>
                                         <ComboBox x:Name="WeatherUnitCombo" Width="160" SelectionChanged="WeatherUnitCombo_SelectionChanged">
                                             <ComboBoxItem Content="°C Celsius" Tag="celsius"/>
                                             <ComboBoxItem Content="°F Fahrenheit" Tag="fahrenheit"/>
@@ -673,19 +693,19 @@
                         <!-- Colonne droite: Contrôle Système + Application -->
                         <StackPanel Grid.Column="2">
                             <TextBlock Text="Contrôle Application" Style="{StaticResource SectionLabel}" Margin="0,0,0,8"/>
-                            <TextBlock Text="Commandes internes de QuickLauncher (préfixe ::)" Foreground="#888" FontSize="11" Margin="0,0,0,8"/>
+                            <TextBlock Text="Commandes internes de QuickLauncher (préfixe ::)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" Margin="0,0,0,8"/>
                             
                             <ScrollViewer x:Name="AppCommandsScrollViewer" MaxHeight="150" VerticalScrollBarVisibility="Auto">
                                 <ItemsControl x:Name="AppCommandsList">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Background="#2A2A2A" CornerRadius="4" Padding="10,8" Margin="0,3" Cursor="Hand" MouseLeftButtonUp="SystemCommandItem_Click">
+                                            <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="4" Padding="10,8" Margin="0,3" Cursor="Hand" MouseLeftButtonUp="SystemCommandItem_Click">
                                                 <Border.ToolTip>
-                                                    <ToolTip Background="#2D2D2D" BorderBrush="#555" Padding="12">
+                                                    <ToolTip Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" Padding="12">
                                                         <StackPanel MaxWidth="280">
-                                                            <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="White" FontSize="13"/>
-                                                            <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Foreground="#CCC" Margin="0,6,0,0"/>
-                                                            <TextBlock Text="{Binding Category, StringFormat='Catégorie: {0}'}" Foreground="#0078D4" FontSize="10" Margin="0,6,0,0"/>
+                                                            <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="13"/>
+                                                            <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,6,0,0"/>
+                                                            <TextBlock Text="{Binding Category, StringFormat='Catégorie: {0}'}" Foreground="{DynamicResource AccentBrush}" FontSize="10" Margin="0,6,0,0"/>
                                                         </StackPanel>
                                                     </ToolTip>
                                                 </Border.ToolTip>
@@ -693,7 +713,7 @@
                                                     <Style TargetType="Border">
                                                         <Style.Triggers>
                                                             <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter Property="Background" Value="#353535"/>
+                                                                <Setter Property="Background" Value="{DynamicResource HoverBrush}"/>
                                                             </Trigger>
                                                             <DataTrigger Binding="{Binding IsEnabled}" Value="False">
                                                                 <Setter Property="Opacity" Value="0.4"/>
@@ -709,16 +729,16 @@
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Grid.Column="0" Text="{Binding Icon}" FontSize="18" VerticalAlignment="Center" Margin="0,0,12,0"/>
                                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding FullPrefix}" Foreground="#0078D4" FontFamily="Consolas" FontSize="12" FontWeight="Bold"/>
-                                                        <TextBlock Text="{Binding Name}" Foreground="#888" FontSize="10" Margin="0,2,0,0"/>
+                                                        <TextBlock Text="{Binding FullPrefix}" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="12" FontWeight="Bold"/>
+                                                        <TextBlock Text="{Binding Name}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10" Margin="0,2,0,0"/>
                                                     </StackPanel>
                                                     <Border Grid.Column="2" Width="32" Height="16" CornerRadius="8" VerticalAlignment="Center" MouseLeftButtonUp="ToggleSwitch_Click" Tag="{Binding}">
                                                         <Border.Style>
                                                             <Style TargetType="Border">
-                                                                <Setter Property="Background" Value="#404040"/>
+                                                                <Setter Property="Background" Value="{DynamicResource BorderBrush}"/>
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding IsEnabled}" Value="True">
-                                                                        <Setter Property="Background" Value="#0078D4"/>
+                                                                        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
@@ -746,19 +766,19 @@
                             </ScrollViewer>
                             
                             <TextBlock Text="Contrôle Système" Style="{StaticResource SectionLabel}" Margin="0,12,0,8"/>
-                            <TextBlock Text="Tapez ':' + préfixe dans la barre de recherche • Cliquez pour modifier" Foreground="#888" FontSize="11" Margin="0,0,0,8"/>
+                            <TextBlock Text="Tapez ':' + préfixe dans la barre de recherche • Cliquez pour modifier" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" Margin="0,0,0,8"/>
                             
                             <ScrollViewer x:Name="SystemCommandsScrollViewer" MaxHeight="280" VerticalScrollBarVisibility="Auto">
                                 <ItemsControl x:Name="SystemCommandsList">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Background="#2A2A2A" CornerRadius="4" Padding="10,8" Margin="0,3" Cursor="Hand" MouseLeftButtonUp="SystemCommandItem_Click">
+                                            <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="4" Padding="10,8" Margin="0,3" Cursor="Hand" MouseLeftButtonUp="SystemCommandItem_Click">
                                                 <Border.ToolTip>
-                                                    <ToolTip Background="#2D2D2D" BorderBrush="#555" Padding="12">
+                                                    <ToolTip Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" Padding="12">
                                                         <StackPanel MaxWidth="280">
-                                                            <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="White" FontSize="13"/>
-                                                            <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Foreground="#CCC" Margin="0,6,0,0"/>
-                                                            <TextBlock Text="{Binding Category, StringFormat='Catégorie: {0}'}" Foreground="#0078D4" FontSize="10" Margin="0,6,0,0"/>
+                                                            <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="13"/>
+                                                            <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,6,0,0"/>
+                                                            <TextBlock Text="{Binding Category, StringFormat='Catégorie: {0}'}" Foreground="{DynamicResource AccentBrush}" FontSize="10" Margin="0,6,0,0"/>
                                                         </StackPanel>
                                                     </ToolTip>
                                                 </Border.ToolTip>
@@ -766,7 +786,7 @@
                                                     <Style TargetType="Border">
                                                         <Style.Triggers>
                                                             <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter Property="Background" Value="#353535"/>
+                                                                <Setter Property="Background" Value="{DynamicResource HoverBrush}"/>
                                                             </Trigger>
                                                             <DataTrigger Binding="{Binding IsEnabled}" Value="False">
                                                                 <Setter Property="Opacity" Value="0.4"/>
@@ -782,16 +802,16 @@
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Grid.Column="0" Text="{Binding Icon}" FontSize="18" VerticalAlignment="Center" Margin="0,0,12,0"/>
                                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding FullPrefix}" Foreground="#0078D4" FontFamily="Consolas" FontSize="12" FontWeight="Bold"/>
-                                                        <TextBlock Text="{Binding Category}" Foreground="#888" FontSize="10" Margin="0,2,0,0"/>
+                                                        <TextBlock Text="{Binding FullPrefix}" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="12" FontWeight="Bold"/>
+                                                        <TextBlock Text="{Binding Category}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10" Margin="0,2,0,0"/>
                                                     </StackPanel>
                                                     <Border Grid.Column="2" Width="32" Height="16" CornerRadius="8" VerticalAlignment="Center" MouseLeftButtonUp="ToggleSwitch_Click" Tag="{Binding}">
                                                         <Border.Style>
                                                             <Style TargetType="Border">
-                                                                <Setter Property="Background" Value="#404040"/>
+                                                                <Setter Property="Background" Value="{DynamicResource BorderBrush}"/>
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding IsEnabled}" Value="True">
-                                                                        <Setter Property="Background" Value="#0078D4"/>
+                                                                        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
@@ -819,7 +839,7 @@
                             </ScrollViewer>
                             
                             <!-- Panneau d'édition amélioré -->
-                            <Border x:Name="CommandEditPanel" Background="#1A3A5C" CornerRadius="8" Padding="16" Margin="0,12,0,0" Visibility="Collapsed" BorderBrush="#0078D4" BorderThickness="1">
+                            <Border x:Name="CommandEditPanel" Background="{DynamicResource SelectionBrush}" CornerRadius="8" Padding="16" Margin="0,12,0,0" Visibility="Collapsed" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
@@ -836,15 +856,15 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="✏️" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                            <TextBlock x:Name="EditCommandName" Text="Modifier la commande" FontSize="14" FontWeight="SemiBold" Foreground="White"/>
-                                            <TextBlock x:Name="EditCommandDescription" Text="" FontSize="11" Foreground="#88AACC" TextTrimming="CharacterEllipsis" MaxWidth="220"/>
+                                            <TextBlock x:Name="EditCommandName" Text="Modifier la commande" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                            <TextBlock x:Name="EditCommandDescription" Text="" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" MaxWidth="220"/>
                                         </StackPanel>
-                                        <Button Grid.Column="2" Content="✕" Click="CancelCommandEdit_Click" Background="Transparent" Foreground="#888" Width="24" Height="24" BorderThickness="0" Cursor="Hand" FontSize="14" VerticalAlignment="Top">
+                                        <Button Grid.Column="2" Content="✕" Click="CancelCommandEdit_Click" Background="Transparent" Foreground="{DynamicResource TextTertiaryBrush}" Width="24" Height="24" BorderThickness="0" Cursor="Hand" FontSize="14" VerticalAlignment="Top">
                                             <Button.Style>
                                                 <Style TargetType="Button">
                                                     <Style.Triggers>
                                                         <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter Property="Foreground" Value="White"/>
+                                                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                                                         </Trigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -862,46 +882,46 @@
                                         
                                         <!-- Préfixe -->
                                         <StackPanel Grid.Column="0">
-                                            <TextBlock Text="Préfixe" Foreground="#88AACC" FontSize="11" Margin="0,0,0,4"/>
+                                            <TextBlock Text="Préfixe" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="0,0,0,4"/>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
-                                                <Border Background="#0D2840" CornerRadius="4,0,0,4" Padding="10,8">
-                                                    <TextBlock x:Name="CommandPrefixLabel" Text=":" Foreground="#0078D4" FontFamily="Consolas" FontSize="14" FontWeight="Bold"/>
+                                                <Border Background="{DynamicResource BackgroundBrush}" CornerRadius="4,0,0,4" Padding="10,8">
+                                                    <TextBlock x:Name="CommandPrefixLabel" Text=":" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="14" FontWeight="Bold"/>
                                                 </Border>
-                                                <TextBox x:Name="CommandPrefixBox" Grid.Column="1" Background="#0D2840" Foreground="White" BorderThickness="0" Padding="8" FontFamily="Consolas" FontSize="14" VerticalContentAlignment="Center"/>
+                                                <TextBox x:Name="CommandPrefixBox" Grid.Column="1" Background="{DynamicResource BackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderThickness="0" Padding="8" FontFamily="Consolas" FontSize="14" VerticalContentAlignment="Center"/>
                                             </Grid>
                                         </StackPanel>
                                         
                                         <!-- Icône -->
                                         <StackPanel Grid.Column="2">
-                                            <TextBlock Text="Icône" Foreground="#88AACC" FontSize="11" Margin="0,0,0,4"/>
-                                            <TextBox x:Name="CommandIconBox" Width="50" Background="#0D2840" Foreground="White" BorderThickness="0" Padding="8" TextAlignment="Center" FontSize="18" VerticalContentAlignment="Center"/>
+                                            <TextBlock Text="Icône" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="0,0,0,4"/>
+                                            <TextBox x:Name="CommandIconBox" Width="50" Background="{DynamicResource BackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderThickness="0" Padding="8" TextAlignment="Center" FontSize="18" VerticalContentAlignment="Center"/>
                                         </StackPanel>
                                     </Grid>
                                     
                                     <!-- Boutons d'action -->
                                     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                                        <Button Content="Annuler" Click="CancelCommandEdit_Click" Background="#2A4A6A" Foreground="#AAA" Padding="16,8" BorderThickness="0" Cursor="Hand" Margin="0,0,8,0">
+                                        <Button Content="Annuler" Click="CancelCommandEdit_Click" Background="{DynamicResource HoverBrush}" Foreground="{DynamicResource TextSecondaryBrush}" Padding="16,8" BorderThickness="0" Cursor="Hand" Margin="0,0,8,0">
                                             <Button.Style>
                                                 <Style TargetType="Button">
                                                     <Style.Triggers>
                                                         <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter Property="Background" Value="#3A5A7A"/>
-                                                            <Setter Property="Foreground" Value="White"/>
+                                                            <Setter Property="Background" Value="{DynamicResource SelectionBrush}"/>
+                                                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                                                         </Trigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </Button.Style>
                                         </Button>
-                                        <Button Content="✓ Appliquer" Click="ApplyCommandEdit_Click" Background="#0078D4" Foreground="White" Padding="16,8" BorderThickness="0" Cursor="Hand" FontWeight="SemiBold">
+                                        <Button Content="✓ Appliquer" Click="ApplyCommandEdit_Click" Background="{DynamicResource AccentBrush}" Foreground="White" Padding="16,8" BorderThickness="0" Cursor="Hand" FontWeight="SemiBold">
                                             <Button.Style>
                                                 <Style TargetType="Button">
                                                     <Style.Triggers>
                                                         <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter Property="Background" Value="#1088E4"/>
+                                                            <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}"/>
                                                         </Trigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -919,7 +939,7 @@
                     <!-- ASSISTANT IA — Section pleine largeur -->
                     <!-- ════════════════════════════════════════════════════ -->
                     <TextBlock Text="🤖 Assistant IA (:ai)" Style="{StaticResource SectionLabel}" FontSize="14" Margin="0,8,0,8"/>
-                    <Border Background="#2D2D2D" CornerRadius="8" Padding="20" Margin="0,0,0,0">
+                    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="20" Margin="0,0,0,0">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -934,8 +954,8 @@
                                         <ColumnDefinition Width="120"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Fournisseur:" Foreground="#AAA" FontSize="13" VerticalAlignment="Center"/>
-                                    <ComboBox x:Name="AiProviderCombo" Grid.Column="1" SelectionChanged="AiProviderCombo_SelectionChanged" Background="#1E1E1E" Foreground="White" BorderBrush="#555" FontSize="12">
+                                    <TextBlock Text="Fournisseur:" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="AiProviderCombo" Grid.Column="1" SelectionChanged="AiProviderCombo_SelectionChanged" Background="{DynamicResource BackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" FontSize="12">
                                         <ComboBoxItem Content="☁️ ChatGPT (OpenAI)" Tag="chatgpt"/>
                                         <ComboBoxItem Content="✨ Gemini (Google)" Tag="gemini"/>
                                         <ComboBoxItem Content="🦙 Ollama (local)" Tag="ollama"/>
@@ -948,8 +968,8 @@
                                         <ColumnDefinition Width="120"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="URL API:" Foreground="#AAA" FontSize="13" VerticalAlignment="Center"/>
-                                    <TextBox x:Name="AiApiUrlBox" Grid.Column="1" Background="#1E1E1E" Foreground="White" BorderBrush="#555" BorderThickness="1" Padding="8,6" FontSize="12" FontFamily="Consolas" LostFocus="AiApiUrlBox_LostFocus" ToolTip="URL de l'API OpenAI-compatible (Ollama, OpenAI, Groq, LM Studio...)"/>
+                                    <TextBlock Text="URL API:" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="AiApiUrlBox" Grid.Column="1" Background="{DynamicResource BackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="8,6" FontSize="12" FontFamily="Consolas" LostFocus="AiApiUrlBox_LostFocus" ToolTip="URL de l'API OpenAI-compatible (Ollama, OpenAI, Groq, LM Studio...)"/>
                                 </Grid>
                                 
                                 <Grid Margin="0,0,0,10">
@@ -957,10 +977,10 @@
                                         <ColumnDefinition Width="120"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Clé API:" Foreground="#AAA" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Clé API:" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" VerticalAlignment="Center"/>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                        <PasswordBox x:Name="AiApiKeyBox" Width="150" Background="#1E1E1E" Foreground="White" BorderBrush="#555" BorderThickness="1" Padding="8,6" FontSize="12" LostFocus="AiApiKeyBox_LostFocus" ToolTip="Clé API du fournisseur"/>
-                                        <TextBlock x:Name="AiApiKeyHint" Text="(requis)" Foreground="#666" FontSize="11" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                        <PasswordBox x:Name="AiApiKeyBox" Width="150" Background="{DynamicResource BackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="8,6" FontSize="12" LostFocus="AiApiKeyBox_LostFocus" ToolTip="Clé API du fournisseur"/>
+                                        <TextBlock x:Name="AiApiKeyHint" Text="(requis)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" VerticalAlignment="Center" Margin="10,0,0,0"/>
                                     </StackPanel>
                                 </Grid>
                                 
@@ -969,8 +989,8 @@
                                         <ColumnDefinition Width="120"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Modèle:" Foreground="#AAA" FontSize="13" VerticalAlignment="Center"/>
-                                    <TextBox x:Name="AiModelBox" Grid.Column="1" Width="200" HorizontalAlignment="Left" Background="#1E1E1E" Foreground="White" BorderBrush="#555" BorderThickness="1" Padding="8,6" FontSize="12" FontFamily="Consolas" LostFocus="AiModelBox_LostFocus" ToolTip="Nom du modèle (ex: gpt-4o-mini, gpt-4o, llama3.2...)"/>
+                                    <TextBlock Text="Modèle:" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="AiModelBox" Grid.Column="1" Width="200" HorizontalAlignment="Left" Background="{DynamicResource BackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="8,6" FontSize="12" FontFamily="Consolas" LostFocus="AiModelBox_LostFocus" ToolTip="Nom du modèle (ex: gpt-4o-mini, gpt-4o, llama3.2...)"/>
                                 </Grid>
                                 
                                 <Grid Margin="0,0,0,10">
@@ -978,23 +998,23 @@
                                         <ColumnDefinition Width="120"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Délai saisie:" Foreground="#AAA" FontSize="13" VerticalAlignment="Center" ToolTip="Délai après la dernière touche avant d'envoyer la requête IA"/>
+                                    <TextBlock Text="Délai saisie:" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" VerticalAlignment="Center" ToolTip="Délai après la dernière touche avant d'envoyer la requête IA"/>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                                         <Slider x:Name="AiDebounceSlider" Minimum="1" Maximum="4" TickFrequency="1" IsSnapToTickEnabled="True" Width="120" VerticalAlignment="Center" ValueChanged="AiDebounceSlider_ValueChanged" ToolTip="Délai en secondes après la dernière touche tapée avant d'envoyer la requête"/>
-                                        <TextBlock x:Name="AiDebounceValue" Text="3s" Foreground="White" FontSize="13" VerticalAlignment="Center" Margin="10,0,0,0" FontWeight="Bold"/>
+                                        <TextBlock x:Name="AiDebounceValue" Text="3s" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="13" VerticalAlignment="Center" Margin="10,0,0,0" FontWeight="Bold"/>
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock Text="Temps d'attente après la dernière touche avant l'envoi" Foreground="#666" FontSize="10" Margin="0,-6,0,0"/>
+                                <TextBlock Text="Temps d'attente après la dernière touche avant l'envoi" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10" Margin="0,-6,0,0"/>
                             </StackPanel>
                             
                             <!-- Colonne droite: Prompt + Test -->
                             <StackPanel Grid.Column="2">
-                                <TextBlock Text="Prompt système:" Foreground="#AAA" FontSize="13" Margin="0,0,0,6"/>
-                                <TextBox x:Name="AiSystemPromptBox" Background="#1E1E1E" Foreground="White" BorderBrush="#555" BorderThickness="1" Padding="8,6" FontSize="12" Height="120" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" LostFocus="AiSystemPromptBox_LostFocus" ToolTip="Instructions données au modèle pour cadrer ses réponses"/>
-                                <TextBlock Text="Instructions données au modèle pour cadrer ses réponses" Foreground="#666" FontSize="10" Margin="0,4,0,0"/>
+                                <TextBlock Text="Prompt système:" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" Margin="0,0,0,6"/>
+                                <TextBox x:Name="AiSystemPromptBox" Background="{DynamicResource BackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="8,6" FontSize="12" Height="120" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" LostFocus="AiSystemPromptBox_LostFocus" ToolTip="Instructions données au modèle pour cadrer ses réponses"/>
+                                <TextBlock Text="Instructions données au modèle pour cadrer ses réponses" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10" Margin="0,4,0,0"/>
                                 
                                 <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                                    <Button x:Name="AiTestBtn" Content="🔌 Tester la connexion" Click="AiTestBtn_Click" Background="#3E3E3E" Foreground="White" Padding="14,8" BorderThickness="0" Cursor="Hand" FontSize="12"/>
+                                    <Button x:Name="AiTestBtn" Content="🔌 Tester la connexion" Click="AiTestBtn_Click" Background="{DynamicResource HoverBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="14,8" BorderThickness="0" Cursor="Hand" FontSize="12"/>
                                 </StackPanel>
                                 <Border x:Name="AiTestResultPanel" CornerRadius="4" Padding="10,6" Margin="0,8,0,0" Visibility="Collapsed">
                                     <TextBlock x:Name="AiTestResultText" FontSize="12" TextWrapping="Wrap"/>
@@ -1010,15 +1030,21 @@
             <!-- ═══════════════════════════════════════════════════════════ -->
             <!-- ONGLET 4: GUIDE (Commandes + Fonctionnalités) -->
             <!-- ═══════════════════════════════════════════════════════════ -->
-            <TabItem Header="📖 Guide">
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE7BC;" FontFamily="Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                        <TextBlock Text="Guide" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20" PreviewMouseWheel="TabScrollViewer_PreviewMouseWheel">
                     <StackPanel>
                         <!-- En-tête -->
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
-                            <TextBlock Text="📖" FontSize="28" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock Text="&#xE7BC;" FontFamily="Segoe MDL2 Assets" FontSize="26" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,12,0"/>
                             <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="Guide complet" FontSize="22" FontWeight="Bold" Foreground="White"/>
-                                <TextBlock Text="Toutes les commandes et fonctionnalités de QuickLauncher" Foreground="#888" FontSize="11"/>
+                                <TextBlock Text="Guide complet" FontSize="22" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Toutes les commandes et fonctionnalités de QuickLauncher" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                             </StackPanel>
                         </StackPanel>
                         
@@ -1036,22 +1062,22 @@
                                 <TextBlock Text="🔍 Recherche" Style="{StaticResource SectionLabel}" FontSize="14" Margin="0,0,0,8"/>
                                 <Border Style="{StaticResource SettingsCard}">
                                     <StackPanel>
-                                        <TextBlock Text="Tapez n'importe quoi dans la barre pour rechercher des applications, fichiers, dossiers, favoris navigateurs et plus encore. La recherche est floue (fuzzy) et tolère les fautes de frappe." Foreground="#CCC" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                        <TextBlock Text="Tapez n'importe quoi dans la barre pour rechercher des applications, fichiers, dossiers, favoris navigateurs et plus encore. La recherche est floue (fuzzy) et tolère les fautes de frappe." Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"/>
                                         <Grid Margin="0,3"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Recherche directe" Foreground="#0078D4" FontSize="11" FontWeight="SemiBold"/>
-                                            <TextBlock Grid.Column="1" Text="Tapez le nom d'une app, fichier ou dossier" Foreground="#888" FontSize="11" TextWrapping="Wrap"/>
+                                            <TextBlock Text="Recherche directe" Foreground="{DynamicResource AccentBrush}" FontSize="11" FontWeight="SemiBold"/>
+                                            <TextBlock Grid.Column="1" Text="Tapez le nom d'une app, fichier ou dossier" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
                                         </Grid>
                                         <Grid Margin="0,3"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Recherche par chemin" Foreground="#0078D4" FontSize="11" FontWeight="SemiBold"/>
-                                            <TextBlock Grid.Column="1" Text="Tapez des fragments du chemin (ex: doc rapport)" Foreground="#888" FontSize="11" TextWrapping="Wrap"/>
+                                            <TextBlock Text="Recherche par chemin" Foreground="{DynamicResource AccentBrush}" FontSize="11" FontWeight="SemiBold"/>
+                                            <TextBlock Grid.Column="1" Text="Tapez des fragments du chemin (ex: doc rapport)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
                                         </Grid>
                                         <Grid Margin="0,3"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Initiales" Foreground="#0078D4" FontSize="11" FontWeight="SemiBold"/>
-                                            <TextBlock Grid.Column="1" Text="Tapez les initiales (ex: vs → Visual Studio)" Foreground="#888" FontSize="11" TextWrapping="Wrap"/>
+                                            <TextBlock Text="Initiales" Foreground="{DynamicResource AccentBrush}" FontSize="11" FontWeight="SemiBold"/>
+                                            <TextBlock Grid.Column="1" Text="Tapez les initiales (ex: vs → Visual Studio)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
                                         </Grid>
                                         <Grid Margin="0,3"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Suggestions fantômes" Foreground="#0078D4" FontSize="11" FontWeight="SemiBold"/>
-                                            <TextBlock Grid.Column="1" Text="Texte grisé dans la barre → Tab ou → pour accepter" Foreground="#888" FontSize="11" TextWrapping="Wrap"/>
+                                            <TextBlock Text="Suggestions fantômes" Foreground="{DynamicResource AccentBrush}" FontSize="11" FontWeight="SemiBold"/>
+                                            <TextBlock Grid.Column="1" Text="Texte grisé dans la barre → Tab ou → pour accepter" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
                                         </Grid>
                                     </StackPanel>
                                 </Border>
@@ -1060,39 +1086,39 @@
                                 <TextBlock Text="⌨️ Raccourcis clavier" Style="{StaticResource SectionLabel}" FontSize="14" Margin="0,10,0,8"/>
                                 <Border Style="{StaticResource SettingsCard}">
                                     <StackPanel>
-                                        <TextBlock Text="Navigation" Foreground="#0078D4" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                        <TextBlock Text="Navigation" Foreground="{DynamicResource AccentBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"/>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="155"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Alt+Espace" Foreground="White" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Ouvrir/fermer QuickLauncher (configurable)" Foreground="#888" FontSize="11" TextWrapping="Wrap"/>
+                                            <TextBlock Text="Alt+Espace" Foreground="{DynamicResource TextPrimaryBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Ouvrir/fermer QuickLauncher (configurable)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="155"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Échap" Foreground="White" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Fermer la fenêtre" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="Échap" Foreground="{DynamicResource TextPrimaryBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Fermer la fenêtre" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="155"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="↑ ↓" Foreground="White" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Naviguer dans les résultats" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="↑ ↓" Foreground="{DynamicResource TextPrimaryBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Naviguer dans les résultats" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="155"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Tab / →" Foreground="White" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Accepter la suggestion fantôme" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="Tab / →" Foreground="{DynamicResource TextPrimaryBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Accepter la suggestion fantôme" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
-                                        <TextBlock Text="Actions" Foreground="#0078D4" FontSize="11" FontWeight="SemiBold" Margin="0,8,0,4"/>
+                                        <TextBlock Text="Actions" Foreground="{DynamicResource AccentBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,8,0,4"/>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="155"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Entrée" Foreground="White" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Lancer l'élément sélectionné" Foreground="#888" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="155"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Ctrl+Entrée" Foreground="White" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Exécuter en tant qu'administrateur" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="Entrée" Foreground="{DynamicResource TextPrimaryBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Lancer l'élément sélectionné" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="155"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Tab / Clic droit" Foreground="White" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Menu contextuel (actions, épingler, alias...)" Foreground="#888" FontSize="11" TextWrapping="Wrap"/>
+                                            <TextBlock Text="Ctrl+Entrée" Foreground="{DynamicResource TextPrimaryBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Exécuter en tant qu'administrateur" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="155"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Double clic" Foreground="White" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Lancer (ou simple clic si activé)" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="Tab / Clic droit" Foreground="{DynamicResource TextPrimaryBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Menu contextuel (actions, épingler, alias...)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
+                                        </Grid>
+                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="155"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                            <TextBlock Text="Double clic" Foreground="{DynamicResource TextPrimaryBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Lancer (ou simple clic si activé)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                     </StackPanel>
                                 </Border>
@@ -1101,26 +1127,26 @@
                                 <TextBlock Text="🧮 Calculatrice intégrée" Style="{StaticResource SectionLabel}" FontSize="14" Margin="0,10,0,8"/>
                                 <Border Style="{StaticResource SettingsCard}">
                                     <StackPanel>
-                                        <TextBlock Text="Tapez une expression mathématique directement dans la barre de recherche. Le résultat s'affiche instantanément. Appuyez Entrée pour le copier." Foreground="#CCC" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                        <TextBlock Text="Tapez une expression mathématique directement dans la barre de recherche. Le résultat s'affiche instantanément. Appuyez Entrée pour le copier." Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"/>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="140"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="2+2*3" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="→ 8 (opérations de base)" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="2+2*3" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="→ 8 (opérations de base)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="140"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="sqrt(144)" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="→ 12 (racine carrée)" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="sqrt(144)" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="→ 12 (racine carrée)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="140"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="2^10" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="→ 1024 (puissance)" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="2^10" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="→ 1024 (puissance)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="140"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="sin(pi/2)" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="→ 1 (trigonométrie + constantes)" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="sin(pi/2)" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="→ 1 (trigonométrie + constantes)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
-                                        <TextBlock Text="Fonctions: sqrt, sin, cos, tan, log, ln, abs, ceil, floor, round" Foreground="#666" FontSize="10" TextWrapping="Wrap" Margin="0,6,0,0"/>
-                                        <TextBlock Text="Constantes: pi, e" Foreground="#666" FontSize="10" Margin="0,2,0,0"/>
-                                        <TextBlock Text="Opérateurs: + − × / ^ % avec parenthèses" Foreground="#666" FontSize="10" Margin="0,2,0,0"/>
+                                        <TextBlock Text="Fonctions: sqrt, sin, cos, tan, log, ln, abs, ceil, floor, round" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                        <TextBlock Text="Constantes: pi, e" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10" Margin="0,2,0,0"/>
+                                        <TextBlock Text="Opérateurs: + − × / ^ % avec parenthèses" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10" Margin="0,2,0,0"/>
                                     </StackPanel>
                                 </Border>
                                 
@@ -1128,26 +1154,26 @@
                                 <TextBlock Text="🌐 Recherche web" Style="{StaticResource SectionLabel}" FontSize="14" Margin="0,10,0,8"/>
                                 <Border Style="{StaticResource SettingsCard}">
                                     <StackPanel>
-                                        <TextBlock Text="Tapez un préfixe suivi d'un espace puis votre recherche pour lancer une recherche web directement dans votre navigateur." Foreground="#CCC" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                        <TextBlock Text="Tapez un préfixe suivi d'un espace puis votre recherche pour lancer une recherche web directement dans votre navigateur." Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"/>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="70"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <Border Background="#0078D4" CornerRadius="3" Padding="6,2" HorizontalAlignment="Left">
+                                            <Border Background="{DynamicResource AccentBrush}" CornerRadius="3" Padding="6,2" HorizontalAlignment="Left">
                                                 <TextBlock Text="g" FontWeight="Bold" Foreground="White" FontSize="11"/>
                                             </Border>
-                                            <TextBlock Grid.Column="1" Text="Google — ex: g recette pizza" Foreground="#888" FontSize="11" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="Google — ex: g recette pizza" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" VerticalAlignment="Center"/>
                                         </Grid>
                                         <Grid Margin="0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="70"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <Border Background="#0078D4" CornerRadius="3" Padding="6,2" HorizontalAlignment="Left">
+                                            <Border Background="{DynamicResource AccentBrush}" CornerRadius="3" Padding="6,2" HorizontalAlignment="Left">
                                                 <TextBlock Text="yt" FontWeight="Bold" Foreground="White" FontSize="11"/>
                                             </Border>
-                                            <TextBlock Grid.Column="1" Text="YouTube — ex: yt tutoriel WPF" Foreground="#888" FontSize="11" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="YouTube — ex: yt tutoriel WPF" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" VerticalAlignment="Center"/>
                                         </Grid>
                                         <Grid Margin="0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="70"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <Border Background="#0078D4" CornerRadius="3" Padding="6,2" HorizontalAlignment="Left">
+                                            <Border Background="{DynamicResource AccentBrush}" CornerRadius="3" Padding="6,2" HorizontalAlignment="Left">
                                                 <TextBlock Text="w" FontWeight="Bold" Foreground="White" FontSize="11"/>
                                             </Border>
-                                            <TextBlock Grid.Column="1" Text="Wikipedia — ex: w Montréal" Foreground="#888" FontSize="11" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="Wikipedia — ex: w Montréal" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" VerticalAlignment="Center"/>
                                         </Grid>
-                                        <TextBlock Text="💡 Voir la liste complète dans l'onglet Commandes." Foreground="#666" FontSize="10" FontStyle="Italic" Margin="0,6,0,0"/>
+                                        <TextBlock Text="💡 Voir la liste complète dans l'onglet Commandes." Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10" FontStyle="Italic" Margin="0,6,0,0"/>
                                     </StackPanel>
                                 </Border>
                                 
@@ -1155,11 +1181,11 @@
                                 <TextBlock Text="⭐ Épingles et alias" Style="{StaticResource SectionLabel}" FontSize="14" Margin="0,10,0,8"/>
                                 <Border Style="{StaticResource SettingsCard}">
                                     <StackPanel>
-                                        <TextBlock Text="Épingles" Foreground="#0078D4" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                                        <TextBlock Text="Clic droit sur un résultat → Épingler. Les éléments épinglés apparaissent quand la barre de recherche est vide, pour un accès instantané." Foreground="#CCC" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"/>
-                                        <TextBlock Text="Alias" Foreground="#0078D4" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                                        <TextBlock Text="Clic droit → Créer un alias pour assigner un raccourci texte à n'importe quelle application. Tapez l'alias pour retrouver l'app instantanément." Foreground="#CCC" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,4"/>
-                                        <TextBlock Text="Exemple: alias 'code' → Visual Studio Code" Foreground="#666" FontSize="10" FontStyle="Italic"/>
+                                        <TextBlock Text="Épingles" Foreground="{DynamicResource AccentBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                        <TextBlock Text="Clic droit sur un résultat → Épingler. Les éléments épinglés apparaissent quand la barre de recherche est vide, pour un accès instantané." Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                        <TextBlock Text="Alias" Foreground="{DynamicResource AccentBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                        <TextBlock Text="Clic droit → Créer un alias pour assigner un raccourci texte à n'importe quelle application. Tapez l'alias pour retrouver l'app instantanément." Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                        <TextBlock Text="Exemple: alias 'code' → Visual Studio Code" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10" FontStyle="Italic"/>
                                     </StackPanel>
                                 </Border>
                                 
@@ -1167,30 +1193,30 @@
                                 <TextBlock Text="📄 Actions contextuelles" Style="{StaticResource SectionLabel}" FontSize="14" Margin="0,10,0,8"/>
                                 <Border Style="{StaticResource SettingsCard}">
                                     <StackPanel>
-                                        <TextBlock Text="Appuyez Tab ou cliquez droit sur un résultat pour accéder au menu contextuel. Les actions varient selon le type d'élément:" Foreground="#CCC" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                        <TextBlock Text="Appuyez Tab ou cliquez droit sur un résultat pour accéder au menu contextuel. Les actions varient selon le type d'élément:" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"/>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="170"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Ouvrir l'emplacement" Foreground="White" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Ouvre le dossier parent" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="Ouvrir l'emplacement" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Ouvre le dossier parent" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="170"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Copier le chemin" Foreground="White" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Copie le chemin complet" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="Copier le chemin" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Copie le chemin complet" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="170"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Exécuter en admin" Foreground="White" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Lancer avec élévation de droits" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="Exécuter en admin" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Lancer avec élévation de droits" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="170"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Renommer / Supprimer" Foreground="White" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Fichiers et dossiers uniquement" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="Renommer / Supprimer" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Fichiers et dossiers uniquement" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="170"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Créer / Supprimer un alias" Foreground="White" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Raccourci texte pour retrouver l'élément" Foreground="#888" FontSize="11" TextWrapping="Wrap"/>
+                                            <TextBlock Text="Créer / Supprimer un alias" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Raccourci texte pour retrouver l'élément" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="170"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Épingler / Désépingler" Foreground="White" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Ajouter ou retirer des favoris" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="Épingler / Désépingler" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Ajouter ou retirer des favoris" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                     </StackPanel>
                                 </Border>
@@ -1203,134 +1229,134 @@
                                 <TextBlock Text="⚡ Commandes système (:commande)" Style="{StaticResource SectionLabel}" FontSize="14" Margin="0,0,0,8"/>
                                 <Border Style="{StaticResource SettingsCard}">
                                     <StackPanel>
-                                        <TextBlock Text="Tapez ':' suivi du nom de la commande dans la barre de recherche. Les commandes activables/désactivables sont configurables dans l'onglet Commandes." Foreground="#CCC" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                        <TextBlock Text="Tapez ':' suivi du nom de la commande dans la barre de recherche. Les commandes activables/désactivables sont configurables dans l'onglet Commandes." Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"/>
                                         
                                         <!-- Productivité -->
-                                        <TextBlock Text="Productivité" Foreground="#4CAF50" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                        <TextBlock Text="Productivité" Foreground="{DynamicResource SuccessBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"/>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":timer 5m café" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Créer une minuterie (5m, 30s, 1h30m)" Foreground="#888" FontSize="11" TextWrapping="Wrap"/>
+                                            <TextBlock Text=":timer 5m café" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Créer une minuterie (5m, 30s, 1h30m)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":note texte" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Créer une note sticky sur le bureau" Foreground="#888" FontSize="11" TextWrapping="Wrap"/>
+                                            <TextBlock Text=":note texte" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Créer une note sticky sur le bureau" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":find terme" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Recherche fichiers sur tout le système" Foreground="#888" FontSize="11" TextWrapping="Wrap"/>
+                                            <TextBlock Text=":find terme" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Recherche fichiers sur tout le système" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":screenshot" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Capture d'écran (snip, primary)" Foreground="#888" FontSize="11" TextWrapping="Wrap"/>
+                                            <TextBlock Text=":screenshot" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Capture d'écran (snip, primary)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
                                         </Grid>
                                         
                                         <!-- Intégrations web -->
-                                        <TextBlock Text="Intégrations web" Foreground="#2196F3" FontSize="11" FontWeight="SemiBold" Margin="0,8,0,4"/>
+                                        <TextBlock Text="Intégrations web" Foreground="{DynamicResource AccentBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,8,0,4"/>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":weather" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Météo (ville par défaut ou spécifiée)" Foreground="#888" FontSize="11" TextWrapping="Wrap"/>
+                                            <TextBlock Text=":weather" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Météo (ville par défaut ou spécifiée)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":translate hello" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Traduction auto ou ciblée (fr, en>fr)" Foreground="#888" FontSize="11" TextWrapping="Wrap"/>
+                                            <TextBlock Text=":translate hello" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Traduction auto ou ciblée (fr, en>fr)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":ai question" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Question IA (ChatGPT, Gemini, Ollama)" Foreground="#888" FontSize="11" TextWrapping="Wrap"/>
+                                            <TextBlock Text=":ai question" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Question IA (ChatGPT, Gemini, Ollama)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
                                         </Grid>
                                         
                                         <!-- Multimédia -->
-                                        <TextBlock Text="Multimédia" Foreground="#FF9800" FontSize="11" FontWeight="SemiBold" Margin="0,8,0,4"/>
+                                        <TextBlock Text="Multimédia" Foreground="{DynamicResource WarningBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,8,0,4"/>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":volume 75" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Volume (0-100, up, down, mute)" Foreground="#888" FontSize="11" TextWrapping="Wrap"/>
+                                            <TextBlock Text=":volume 75" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Volume (0-100, up, down, mute)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":mute" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Basculer le mode muet" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text=":mute" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Basculer le mode muet" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":brightness 50" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Luminosité écran (0-100)" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text=":brightness 50" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Luminosité écran (0-100)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         
                                         <!-- Réseau -->
-                                        <TextBlock Text="Réseau" Foreground="#9C27B0" FontSize="11" FontWeight="SemiBold" Margin="0,8,0,4"/>
+                                        <TextBlock Text="Réseau" Foreground="{DynamicResource AccentBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,8,0,4"/>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":wifi on/off" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Activer/désactiver le WiFi" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text=":wifi on/off" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Activer/désactiver le WiFi" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":flushdns" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Vider le cache DNS" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text=":flushdns" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Vider le cache DNS" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         
                                         <!-- Session -->
-                                        <TextBlock Text="Session" Foreground="#F44336" FontSize="11" FontWeight="SemiBold" Margin="0,8,0,4"/>
+                                        <TextBlock Text="Session" Foreground="{DynamicResource DangerBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,8,0,4"/>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":lock" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Verrouiller la session" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text=":lock" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Verrouiller la session" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":sleep / :hibernate" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Veille / Hibernation" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text=":sleep / :hibernate" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Veille / Hibernation" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":shutdown / :restart" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Éteindre / Redémarrer le PC" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text=":shutdown / :restart" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Éteindre / Redémarrer le PC" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":logoff" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Déconnecter la session" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text=":logoff" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Déconnecter la session" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         
                                         <!-- Outils système (sous-section colorée) -->
-                                        <Border Background="#1E2A30" CornerRadius="4" Padding="10,8" Margin="0,10,0,0" BorderBrush="#546E7A" BorderThickness="1,0,0,0">
+                                        <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="4" Padding="10,8" Margin="0,10,0,0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1,0,0,0">
                                             <StackPanel>
-                                                <TextBlock Text="🛠️ Outils système" Foreground="#78909C" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                                                <TextBlock Text="🛠️ Outils système" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":taskmgr" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Gestionnaire des tâches" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text=":taskmgr" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Gestionnaire des tâches" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":winsettings" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Paramètres Windows" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text=":winsettings" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Paramètres Windows" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":control" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Panneau de configuration" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text=":control" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Panneau de configuration" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":emptybin" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Vider la corbeille" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text=":emptybin" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Vider la corbeille" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":emptytemp" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Nettoyer le dossier Temp" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text=":emptytemp" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Nettoyer le dossier Temp" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":cmd / :powershell" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Terminal admin (CMD ou PS)" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text=":cmd / :powershell" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Terminal admin (CMD ou PS)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":restartexplorer" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Redémarrer l'Explorateur" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text=":restartexplorer" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Redémarrer l'Explorateur" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":startup" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Dossier de démarrage Windows" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text=":startup" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Dossier de démarrage Windows" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":hosts" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Éditer le fichier hosts (admin)" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text=":hosts" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Éditer le fichier hosts (admin)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":process kill nom" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Tuer un processus par nom" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text=":process kill nom" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Tuer un processus par nom" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":disk" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Espace disque disponible" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text=":disk" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Espace disque disponible" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                             </StackPanel>
                                         </Border>
@@ -1341,30 +1367,30 @@
                                 <TextBlock Text="🚀 Commandes application (::commande)" Style="{StaticResource SectionLabel}" FontSize="14" Margin="0,10,0,8"/>
                                 <Border Style="{StaticResource SettingsCard}">
                                     <StackPanel>
-                                        <TextBlock Text="Commandes internes de QuickLauncher. Utilisez le préfixe '::' pour les distinguer des commandes système." Foreground="#CCC" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                        <TextBlock Text="Commandes internes de QuickLauncher. Utilisez le préfixe '::' pour les distinguer des commandes système." Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"/>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="120"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="::settings" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Ouvrir ces paramètres" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="::settings" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Ouvrir ces paramètres" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="120"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="::reload" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Reconstruire l'index de recherche" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="::reload" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Reconstruire l'index de recherche" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="120"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="::history" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Voir l'historique de recherche" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="::history" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Voir l'historique de recherche" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="120"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="::clear" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Effacer l'historique de recherche" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="::clear" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Effacer l'historique de recherche" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="120"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="::help" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Afficher les commandes disponibles" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="::help" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Afficher les commandes disponibles" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="120"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="::quit" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Fermer QuickLauncher" Foreground="#888" FontSize="11"/>
+                                            <TextBlock Text="::quit" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Fermer QuickLauncher" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                         </Grid>
                                     </StackPanel>
                                 </Border>
@@ -1373,9 +1399,9 @@
                                 <TextBlock Text="📌 Widgets bureau" Style="{StaticResource SectionLabel}" FontSize="14" Margin="0,10,0,8"/>
                                 <Border Style="{StaticResource SettingsCard}">
                                     <StackPanel>
-                                        <TextBlock Text="Les notes et minuteries créées avec :note et :timer génèrent des widgets flottants sur le bureau. Ils sont déplaçables et persistent entre les sessions." Foreground="#CCC" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6"/>
-                                        <TextBlock Text="📝 Notes — clic droit pour supprimer, glisser pour déplacer" Foreground="#888" FontSize="11" Margin="0,2"/>
-                                        <TextBlock Text="⏱️ Timers — notification sonore à la fin, clic pour fermer" Foreground="#888" FontSize="11" Margin="0,2"/>
+                                        <TextBlock Text="Les notes et minuteries créées avec :note et :timer génèrent des widgets flottants sur le bureau. Ils sont déplaçables et persistent entre les sessions." Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                                        <TextBlock Text="📝 Notes — clic droit pour supprimer, glisser pour déplacer" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" Margin="0,2"/>
+                                        <TextBlock Text="⏱️ Timers — notification sonore à la fin, clic pour fermer" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" Margin="0,2"/>
                                     </StackPanel>
                                 </Border>
                                 
@@ -1390,47 +1416,47 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0">
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="fr" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Français" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="fr" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Français" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="en" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Anglais" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="en" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Anglais" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="es" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Espagnol" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="es" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Espagnol" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="de" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Allemand" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="de" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Allemand" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="it" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Italien" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="it" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Italien" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="pt" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Portugais" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="pt" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Portugais" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="nl" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Néerlandais" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="nl" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Néerlandais" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="ru" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Russe" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="ru" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Russe" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="zh" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Chinois" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="zh" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Chinois" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="ja" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Japonais" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="ja" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Japonais" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="ko" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Coréen" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="ko" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Coréen" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="ar" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Arabe" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="ar" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Arabe" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="hi" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Hindi" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="hi" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Hindi" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="pl" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Polonais" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="pl" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Polonais" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="tr" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Turc" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="tr" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Turc" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="sv" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Suédois" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="sv" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Suédois" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="el" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Grec" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="el" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Grec" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="ro" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Roumain" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="ro" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Roumain" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="cs" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Tchèque" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="cs" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Tchèque" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                             <Grid Margin="0,1"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <TextBlock Text="hu" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Hongrois" Foreground="#888" FontSize="11"/></Grid>
+                                                <TextBlock Text="hu" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/><TextBlock Grid.Column="1" Text="Hongrois" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                         </StackPanel>
                                     </Grid>
                                 </Border>
@@ -1439,18 +1465,18 @@
                                 <TextBlock Text="🤖 Commande :ai" Style="{StaticResource SectionLabel}" FontSize="14" Margin="0,10,0,8"/>
                                 <Border Style="{StaticResource SettingsCard}">
                                     <StackPanel>
-                                        <TextBlock Text="Exemples:" Foreground="#AAA" FontSize="11" Margin="0,0,0,6"/>
+                                        <TextBlock Text="Exemples:" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="0,0,0,6"/>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":ai qu'est-ce qu'une API REST?" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="  Question simple" Foreground="#888" FontSize="11"/></Grid>
+                                            <TextBlock Text=":ai qu'est-ce qu'une API REST?" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="  Question simple" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":ai convertir 72°F en celsius" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="  Calcul" Foreground="#888" FontSize="11"/></Grid>
+                                            <TextBlock Text=":ai convertir 72°F en celsius" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="  Calcul" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
                                         <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":ai regex email python" Foreground="#0078D4" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="  Code" Foreground="#888" FontSize="11"/></Grid>
-                                        <TextBlock Text="Appuyez Entrée sur le résultat pour copier la réponse." Foreground="#666" FontSize="10" Margin="0,8,0,0"/>
-                                        <TextBlock Text="Configuration: onglet Commandes → Intégrations web" Foreground="#666" FontSize="10" Margin="0,2,0,0"/>
+                                            <TextBlock Text=":ai regex email python" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="  Code" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/></Grid>
+                                        <TextBlock Text="Appuyez Entrée sur le résultat pour copier la réponse." Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10" Margin="0,8,0,0"/>
+                                        <TextBlock Text="Configuration: onglet Commandes → Intégrations web" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10" Margin="0,2,0,0"/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
@@ -1462,7 +1488,13 @@
             <!-- ═══════════════════════════════════════════════════════════ -->
             <!-- ONGLET 5: À PROPOS (Guide + Stats + Infos) -->
             <!-- ═══════════════════════════════════════════════════════════ -->
-            <TabItem Header="ℹ️ À propos">
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                        <TextBlock Text="À propos" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20" PreviewMouseWheel="TabScrollViewer_PreviewMouseWheel">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -1476,27 +1508,27 @@
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
                                 <TextBlock Text="🚀" FontSize="36" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                 <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="QuickLauncher" FontSize="22" FontWeight="Bold" Foreground="White"/>
-                                    <TextBlock Text="Version 1.0.0 • Par Felix-Antoine" Foreground="#888" FontSize="11"/>
+                                    <TextBlock Text="QuickLauncher" FontSize="22" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Version 1.0.0 • Par Felix-Antoine" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                 </StackPanel>
                             </StackPanel>
                             
                             <TextBlock Text="Astuces" Style="{StaticResource SectionLabel}"/>
-                            <Border Background="#2D3D2D" CornerRadius="6" Padding="12" BorderBrush="#4CAF50" BorderThickness="1">
+                            <Border Background="{DynamicResource SuccessSurfaceBrush}" CornerRadius="6" Padding="12" BorderBrush="{DynamicResource SuccessBrush}" BorderThickness="1">
                                 <StackPanel>
-                                    <TextBlock Text="• ⭐ Épinglez vos apps favorites (clic droit → Épingler)" Foreground="#AAA" FontSize="11" Margin="0,2"/>
-                                    <TextBlock Text="• Les épinglés apparaissent quand la barre est vide" Foreground="#AAA" FontSize="11" Margin="0,2"/>
-                                    <TextBlock Text="• Tapez '::help' pour voir toutes les commandes" Foreground="#AAA" FontSize="11" Margin="0,2"/>
-                                    <TextBlock Text="• Calculatrice intégrée: tapez '2+2*3'" Foreground="#AAA" FontSize="11" Margin="0,2"/>
-                                    <TextBlock Text="• Clic droit pour actions contextuelles" Foreground="#AAA" FontSize="11" Margin="0,2"/>
+                                    <TextBlock Text="• ⭐ Épinglez vos apps favorites (clic droit → Épingler)" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="0,2"/>
+                                    <TextBlock Text="• Les épinglés apparaissent quand la barre est vide" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="0,2"/>
+                                    <TextBlock Text="• Tapez '::help' pour voir toutes les commandes" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="0,2"/>
+                                    <TextBlock Text="• Calculatrice intégrée: tapez '2+2*3'" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="0,2"/>
+                                    <TextBlock Text="• Clic droit pour actions contextuelles" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="0,2"/>
                                 </StackPanel>
                             </Border>
                             
                             <TextBlock Text="Zone dangereuse" Style="{StaticResource SectionLabel}"/>
-                            <Border Background="#3D2020" CornerRadius="6" Padding="12" BorderBrush="#E81123" BorderThickness="1">
+                            <Border Background="{DynamicResource DangerSurfaceBrush}" CornerRadius="6" Padding="12" BorderBrush="{DynamicResource DangerStrongBrush}" BorderThickness="1">
                                 <StackPanel>
-                                    <TextBlock Text="Réinitialiser tous les paramètres aux valeurs par défaut." Foreground="#888" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,10"/>
-                                    <Button Content="🗑️ Réinitialiser" Click="ResetSettings_Click" Background="#E81123" Foreground="White" Padding="10,6" BorderThickness="0" HorizontalAlignment="Left" Cursor="Hand"/>
+                                    <TextBlock Text="Réinitialiser tous les paramètres aux valeurs par défaut." Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,10"/>
+                                    <Button Content="🗑️ Réinitialiser" Click="ResetSettings_Click" Background="{DynamicResource DangerStrongBrush}" Foreground="White" Padding="10,6" BorderThickness="0" HorizontalAlignment="Left" Cursor="Hand"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -1505,13 +1537,13 @@
                         <StackPanel Grid.Column="2">
                             <TextBlock Text="Statistiques" Style="{StaticResource SectionLabel}" Margin="0,0,0,8"/>
                             <Border Style="{StaticResource SettingsCard}">
-                                <TextBlock x:Name="StatsText" Text="Chargement..." Foreground="#888" FontSize="11"/>
+                                <TextBlock x:Name="StatsText" Text="Chargement..." Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                             </Border>
                             
                             <TextBlock Text="Données" Style="{StaticResource SectionLabel}"/>
                             <Border Style="{StaticResource SettingsCard}">
                                 <StackPanel>
-                                    <TextBlock x:Name="DataPathText" Text="" Foreground="#888" TextWrapping="Wrap" FontFamily="Consolas" FontSize="10"/>
+                                    <TextBlock x:Name="DataPathText" Text="" Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap" FontFamily="Consolas" FontSize="10"/>
                                     <Button Content="📂 Ouvrir le dossier" Click="OpenDataFolder_Click" Style="{StaticResource ActionButton}" Margin="0,10,0,0" HorizontalAlignment="Left"/>
                                 </StackPanel>
                             </Border>
@@ -1522,7 +1554,7 @@
         </TabControl>
         
         <!-- Barre de statut -->
-        <Border Grid.Row="2" BorderBrush="#3E3E3E" BorderThickness="0,1,0,0" Padding="0,15,0,0" Margin="0,15,0,0">
+        <Border Grid.Row="2" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="0,15,0,0" Margin="0,15,0,0">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -1530,17 +1562,17 @@
                 </Grid.ColumnDefinitions>
                 
                 <!-- Avertissement redémarrage requis -->
-                <Border x:Name="RestartWarningPanel" Grid.Column="0" Background="#3D2D10" CornerRadius="6" Padding="12,8" Visibility="Collapsed">
+                <Border x:Name="RestartWarningPanel" Grid.Column="0" Background="{DynamicResource WarningSurfaceBrush}" CornerRadius="6" Padding="12,8" Visibility="Collapsed">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="⚠️" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <TextBlock Text="Le raccourci clavier a été modifié. Un redémarrage est nécessaire." Foreground="#FFB900" VerticalAlignment="Center" FontSize="12"/>
-                        <Button Content="Redémarrer" Click="RestartApp_Click" Background="#FFB900" Foreground="Black" Padding="10,4" Margin="15,0,0,0" BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"/>
+                        <TextBlock Text="Le raccourci clavier a été modifié. Un redémarrage est nécessaire." Foreground="{DynamicResource WarningBrush}" VerticalAlignment="Center" FontSize="12"/>
+                        <Button Content="Redémarrer" Click="RestartApp_Click" Background="{DynamicResource WarningBrush}" Foreground="Black" Padding="10,4" Margin="15,0,0,0" BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"/>
                     </StackPanel>
                 </Border>
                 
                 <!-- Indicateur de sauvegarde auto -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock x:Name="AutoSaveIndicator" Text="💾 Sauvegarde automatique" Foreground="#666" FontSize="11" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="AutoSaveIndicator" Text="💾 Sauvegarde automatique" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" VerticalAlignment="Center"/>
                 </StackPanel>
             </Grid>
         </Border>

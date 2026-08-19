@@ -283,23 +283,34 @@ public partial class App : Application
     private System.Windows.Controls.ContextMenu CreateContextMenu(AppSettings settings)
     {
         var menu = new System.Windows.Controls.ContextMenu();
-        
-        AddMenuItem(menu, $"Ouvrir ({settings.Hotkey.DisplayText})", ShowLauncher);
+
+        // Icônes : glyphes Segoe MDL2 Assets (même langage que la fenêtre principale)
+        AddMenuItem(menu, "\uE721", $"Ouvrir ({settings.Hotkey.DisplayText})", ShowLauncher);
         menu.Items.Add(new System.Windows.Controls.Separator());
-        AddMenuItem(menu, "⚙️ Paramètres...", ShowSettings);
-        AddMenuItem(menu, "🔄 Réindexer", async () => await ReindexAsync());
+        AddMenuItem(menu, "\uE713", "Paramètres...", ShowSettings);
+        AddMenuItem(menu, "\uE72C", "Réindexer", async () => await ReindexAsync());
         menu.Items.Add(new System.Windows.Controls.Separator());
-        AddMenuItem(menu, "⬆️ Vérifier les mises à jour", async () => await CheckForUpdatesAsync(silent: false));
-        AddMenuItem(menu, "❓ Aide", ShowHelp);
+        AddMenuItem(menu, "\uE896", "Vérifier les mises à jour", async () => await CheckForUpdatesAsync(silent: false));
+        AddMenuItem(menu, "\uE897", "Aide", ShowHelp);
         menu.Items.Add(new System.Windows.Controls.Separator());
-        AddMenuItem(menu, "🚪 Quitter", ExitApplication);
-        
+        AddMenuItem(menu, "\uE7E8", "Quitter", ExitApplication);
+
         return menu;
     }
-    
-    private static void AddMenuItem(System.Windows.Controls.ContextMenu menu, string header, Action action)
+
+    private static void AddMenuItem(System.Windows.Controls.ContextMenu menu, string glyph, string header, Action action)
     {
-        var item = new System.Windows.Controls.MenuItem { Header = header };
+        var item = new System.Windows.Controls.MenuItem
+        {
+            Header = header,
+            Icon = new System.Windows.Controls.TextBlock
+            {
+                Text = glyph,
+                FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"),
+                FontSize = 14,
+                VerticalAlignment = VerticalAlignment.Center
+            }
+        };
         item.Click += (_, _) => action();
         menu.Items.Add(item);
     }

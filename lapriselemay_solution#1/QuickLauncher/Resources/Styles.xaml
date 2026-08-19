@@ -40,6 +40,10 @@
     <Color x:Key="AccentHoverColor">#1084D9</Color>
     <Color x:Key="AccentPressedColor">#006CBD</Color>
     <Color x:Key="DangerColor">#FF6B6B</Color>
+    <!-- Rouge saturé pour les FONDS d'éléments destructifs (bouton Réinitialiser) :
+         DangerColor est calibré pour du texte sur fond sombre, trop clair pour
+         porter du texte blanc (2.6:1). DangerStrong garde le blanc à 4.7:1. -->
+    <Color x:Key="DangerStrongColor">#E81123</Color>
     <Color x:Key="SuccessColor">#4CAF50</Color>
     <Color x:Key="WarningColor">#FFA726</Color>
     
@@ -64,6 +68,7 @@
     <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}"/>
     <SolidColorBrush x:Key="AccentHoverBrush" Color="{StaticResource AccentHoverColor}"/>
     <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}"/>
+    <SolidColorBrush x:Key="DangerStrongBrush" Color="{StaticResource DangerStrongColor}"/>
     <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}"/>
     <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}"/>
 

@@ -24,6 +24,7 @@ public partial class App : Application
     private LauncherWindow? _launcherWindow;
     private DispatcherTimer? _autoReindexTimer;
     private DateTime? _lastScheduledReindex;
+    private bool _cleanedUp;
     private readonly ILogger _logger = new FileLogger(appName: Constants.AppName);
 
     /// <summary>
@@ -525,6 +526,13 @@ public partial class App : Application
     
     private void Cleanup()
     {
+        // Cleanup est appelé deux fois sur le chemin normal de fermeture
+        // (ExitApplication → Cleanup, puis Shutdown → OnExit → Cleanup).
+        // Le second passage appellerait GetService sur un ServiceProvider
+        // déjà disposé → ObjectDisposedException en plein shutdown.
+        if (_cleanedUp) return;
+        _cleanedUp = true;
+
         _autoReindexTimer?.Stop();
         _hotkeyService?.Unregister();
         _hotkeyService?.Dispose();

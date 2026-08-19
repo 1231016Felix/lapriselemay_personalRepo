@@ -136,7 +136,7 @@ public sealed class FileWatcherService : IDisposable
 
     private void OnFileDeleted(object sender, FileSystemEventArgs e)
     {
-        if (ShouldProcess(e.FullPath))
+        if (ShouldProcessDeleted(e.FullPath))
         {
             EnqueueChange(FileChangeType.Deleted, e.FullPath);
         }
@@ -144,7 +144,8 @@ public sealed class FileWatcherService : IDisposable
 
     private void OnFileRenamed(object sender, RenamedEventArgs e)
     {
-        if (ShouldProcess(e.OldFullPath))
+        // L'ancien chemin n'existe plus sur le disque → utiliser la variante "deleted"
+        if (ShouldProcessDeleted(e.OldFullPath))
         {
             EnqueueChange(FileChangeType.Deleted, e.OldFullPath);
         }
@@ -185,6 +186,26 @@ public sealed class FileWatcherService : IDisposable
             return false;
         
         // Vérifier les extensions autorisées
+        return _settingsProvider.Current.Search.FileExtensions.Contains(ext);
+    }
+
+    /// <summary>
+    /// Variante de <see cref="ShouldProcess"/> pour un chemin qui vient d'être
+    /// supprimé (ou renommé) : impossible d'interroger le disque, Directory.Exists
+    /// est toujours faux. Un chemin sans extension est donc traité comme un dossier
+    /// potentiel au lieu d'être ignoré — sinon la suppression d'un dossier indexé
+    /// laissait des entrées fantômes dans l'index jusqu'à la prochaine réindexation.
+    /// </summary>
+    private bool ShouldProcessDeleted(string path)
+    {
+        var ext = Path.GetExtension(path).ToLowerInvariant();
+
+        if (string.IsNullOrEmpty(ext))
+            return true; // Dossier potentiel
+
+        if (ext.StartsWith(".tmp") || ext == ".temp" || path.Contains("~$"))
+            return false;
+
         return _settingsProvider.Current.Search.FileExtensions.Contains(ext);
     }
 

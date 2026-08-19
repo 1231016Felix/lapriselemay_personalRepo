@@ -98,13 +98,21 @@ public sealed class UpdateService
     {
         try
         {
+            // ApplicationData (Roaming) : c'est là qu'IndexingService place la base,
+            // pas dans LocalApplicationData (réservé aux logs).
             var dataDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 Constants.AppName);
 
             var staleIndex = Path.Combine(dataDir, Constants.DatabaseFileName);
-            if (File.Exists(staleIndex))
-                File.Delete(staleIndex);
+
+            // La base est en mode WAL : supprimer aussi -wal et -shm, sinon un
+            // journal orphelin resterait à côté de la base recréée.
+            foreach (var file in new[] { staleIndex, staleIndex + "-wal", staleIndex + "-shm" })
+            {
+                if (File.Exists(file))
+                    File.Delete(file);
+            }
         }
         catch
         {

@@ -339,11 +339,47 @@ public partial class LauncherWindow : Window
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
-        
-        if (e.OriginalSource is System.Windows.Controls.TextBox or System.Windows.Controls.ListBoxItem)
+
+        // Ne pas déplacer la fenêtre quand le clic part d'un contrôle interactif.
+        // Tester le TYPE d'OriginalSource ne suffisait pas : sur un résultat, la source
+        // est le TextBlock (ou l'Image) du DataTemplate, jamais le ListBoxItem lui-même.
+        // DragMove() démarrait donc une boucle modale de déplacement qui capture la
+        // souris et avale le MouseUp : ResultsList_PreviewMouseLeftButtonUp n'était
+        // jamais appelé, ce qui tuait le lancement au simple clic (et l'exécution
+        // au clic des commandes système, ainsi que le réordonnancement des épingles).
+        if (StartsFromInteractiveControl(e.OriginalSource as DependencyObject))
             return;
-            
+
         DragMove();
+    }
+
+    /// <summary>
+    /// Remonte l'arbre depuis la source du clic pour savoir s'il provient d'un contrôle
+    /// qui gère lui-même la souris (liste de résultats, champ de recherche, bouton,
+    /// barre de défilement). Conforme au comportement documenté dans le README :
+    /// la fenêtre se déplace en cliquant partout SAUF le champ de texte et la liste.
+    /// </summary>
+    private static bool StartsFromInteractiveControl(DependencyObject? source)
+    {
+        while (source != null)
+        {
+            if (source is System.Windows.Controls.TextBox
+                or System.Windows.Controls.ListBox
+                or System.Windows.Controls.ListBoxItem
+                or System.Windows.Controls.Primitives.ButtonBase
+                or System.Windows.Controls.Primitives.ScrollBar)
+            {
+                return true;
+            }
+
+            // VisualTreeHelper n'accepte que des Visual : les ContentElement
+            // (Run, etc.) doivent passer par l'arbre logique.
+            source = source is System.Windows.Media.Visual
+                ? VisualTreeHelper.GetParent(source)
+                : LogicalTreeHelper.GetParent(source);
+        }
+
+        return false;
     }
     
     public void FocusSearchBox()

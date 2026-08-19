@@ -13,6 +13,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 
 using Application = System.Windows.Application;
+using Brush = System.Windows.Media.Brush;
 using Color = System.Windows.Media.Color;
 using ColorConverter = System.Windows.Media.ColorConverter;
 using ComboBox = System.Windows.Controls.ComboBox;

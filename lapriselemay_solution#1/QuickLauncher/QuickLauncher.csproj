@@ -63,4 +63,10 @@
     <Resource Include="Resources\**\*" Exclude="Resources\**\*.xaml" />
   </ItemGroup>
 
+  <!-- Expose les membres internal au projet de tests (EscapeQuery,
+       ComputeDamerauLevenshtein, MatchesInitials, IsSubsequenceMatch...). -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="QuickLauncher.Tests" />
+  </ItemGroup>
+
 </Project>

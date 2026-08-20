@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Même TFM que le projet testé : QuickLauncher est une application WPF
+         ciblant net9.0-windows10.0.19041.0, une ProjectReference impose donc
+         un framework cible compatible. -->
+    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
+    <WindowsSdkPackageVersion>10.0.19041.41</WindowsSdkPackageVersion>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>QuickLauncher.Tests</RootNamespace>
+    <AssemblyName>QuickLauncher.Tests</AssemblyName>
+
+    <!-- Ces tests ne touchent que du code pur (chaînes, distances, cache) :
+         aucune fenêtre WPF n'est instanciée, un runner STA n'est pas requis. -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\QuickLauncher\QuickLauncher.csproj" />
+  </ItemGroup>
+
+</Project>

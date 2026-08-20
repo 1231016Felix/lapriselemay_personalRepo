@@ -217,7 +217,12 @@ public static class WindowsSearchService
         return $"{size:0.##} {sizes[order]}";
     }
 
-    private static string EscapeQuery(string query)
+    /// <summary>
+    /// Échappe les caractères spéciaux d'une requête avant injection dans le SQL
+    /// de Windows Search. <c>internal</c> plutôt que <c>private</c> pour être
+    /// couvert par QuickLauncher.Tests (cf. InternalsVisibleTo).
+    /// </summary>
+    internal static string EscapeQuery(string query)
     {
         // Échapper les caractères spéciaux pour SQL et Windows Search.
         // '[' doit être échappé EN PREMIER : les remplacements de % et _

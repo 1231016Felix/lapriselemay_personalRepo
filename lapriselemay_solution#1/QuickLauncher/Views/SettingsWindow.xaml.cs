@@ -535,6 +535,12 @@ public partial class SettingsWindow : Window
             if (!_isLoading)
             {
                 _settings.Appearance.AccentColor = color;
+                // Appliquer immédiatement, comme le fait ThemeModeCombo_SelectionChanged
+                // pour le thème. Sans cet appel la couleur était bien persistée mais
+                // n'atterrissait dans les ressources qu'au prochain démarrage (App.OnStartup)
+                // ou au détour d'un changement de thème : titres de section, valeurs
+                // accentuées et badges restaient sur l'ancienne couleur.
+                _themeService?.ApplyAccentColor(color);
                 AutoSave();
             }
         }

@@ -107,7 +107,29 @@ function Invoke-Checked {
         [string] $ErrorMessage = 'Commande échouée'
     )
 
-    & $Exe @Arguments
+    # Le flux d'erreur est fusionné dans la sortie standard et $ErrorActionPreference
+    # repasse à 'Continue' le temps de l'appel. Sans cela, PowerShell 5.1 transforme
+    # la moindre ligne écrite sur stderr par un exécutable natif en ErrorRecord
+    # terminante : 'git push' annonce sa réussite sur stderr ("To https://...")
+    # et faisait donc échouer la release APRÈS un push pourtant réussi, laissant
+    # le dépôt avec un commit de version publié mais aucune GitHub Release.
+    # Seul le code de sortie fait foi.
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & $Exe @Arguments 2>&1 | ForEach-Object {
+            if ($_ -is [System.Management.Automation.ErrorRecord]) {
+                Write-Host $_.Exception.Message
+            }
+            else {
+                Write-Host $_
+            }
+        }
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+    }
+
     if ($LASTEXITCODE -ne 0) {
         throw "$ErrorMessage (code $LASTEXITCODE) : $Exe $($Arguments -join ' ')"
     }

@@ -53,4 +53,18 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     public static extern int GetSystemMetrics(int nIndex);
+
+    // === Position du curseur ===
+    // Mouse.GetPosition() renvoie des coordonnées périmées après la boucle modale
+    // de DragDrop.DoDragDrop ; il faut réinterroger le système.
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetCursorPos(out POINT lpPoint);
 }

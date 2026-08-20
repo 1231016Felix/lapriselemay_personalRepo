@@ -26,6 +26,7 @@ public partial class LauncherWindow : Window
     private System.Windows.Point _dragStartPoint;
     private bool _isDragging;
     private int _dragFromIndex = -1;
+    private bool _pinReorderPerformed;
     private Border? _dropIndicator;
     
     // Flag pour empêcher le HideWindow pendant l'affichage d'un dialogue modal
@@ -692,18 +693,31 @@ public partial class LauncherWindow : Window
         if (_isDragging)
             return;
         
-        if (ResultsList.SelectedItem == null)
-            return;
-        
         // Vérifier qu'on a bien cliqué sur un item (pas sur le scrollbar)
         var container = ItemsControl.ContainerFromElement(ResultsList, (DependencyObject)e.OriginalSource) as ListBoxItem;
         if (container == null)
             return;
         
+        TryLaunchOnClick();
+    }
+    
+    /// <summary>
+    /// Applique l'action « clic simple » sur le résultat sélectionné.
+    /// 
+    /// Extrait du handler MouseUp pour être rejouable depuis la sortie de
+    /// <c>DragDrop.DoDragDrop</c> : cette boucle modale capture la souris et
+    /// consomme le MouseUp, si bien que
+    /// <see cref="ResultsList_PreviewMouseLeftButtonUp"/> n'est jamais appelé
+    /// lorsqu'un glisser a démarré — même involontairement.
+    /// </summary>
+    private void TryLaunchOnClick()
+    {
+        if (ResultsList.SelectedItem is not SearchResult result)
+            return;
+        
         // Les commandes système (CTRL/SYS) s'exécutent toujours en clic simple
         // car ce sont des actions, pas des fichiers à ouvrir
-        if (ResultsList.SelectedItem is SearchResult result 
-            && result.Type is ResultType.SystemControl or ResultType.AppControl or ResultType.SystemCommand)
+        if (result.Type is ResultType.SystemControl or ResultType.AppControl or ResultType.SystemCommand)
         {
             _viewModel.ExecuteCommand.Execute(null);
             return;
@@ -799,9 +813,12 @@ public partial class LauncherWindow : Window
         var pos = e.GetPosition(ResultsList);
         var diff = pos - _dragStartPoint;
 
-        // Seuil de déplacement minimum pour éviter les faux drags
-        if (Math.Abs(diff.X) < SystemParameters.MinimumHorizontalDragDistance &&
-            Math.Abs(diff.Y) < SystemParameters.MinimumVerticalDragDistance)
+        // Seuil de déplacement minimum pour éviter les faux drags.
+        // Cf. Constants.PinDragThresholdPx : le seuil système (4 px) était trop
+        // bas ici, un simple clic un peu tremblant démarrait un glisser dont la
+        // boucle modale avalait le MouseUp — et donc le lancement au clic simple.
+        if (Math.Abs(diff.X) < Constants.PinDragThresholdPx &&
+            Math.Abs(diff.Y) < Constants.PinDragThresholdPx)
             return;
 
         // Trouver l'item sous le curseur au point de départ
@@ -815,6 +832,7 @@ public partial class LauncherWindow : Window
         // Démarrer le drag
         _isDragging = true;
         _dragFromIndex = index;
+        _pinReorderPerformed = false;
         item.Opacity = 0.4;
 
         var data = new System.Windows.DataObject("PinnedItemIndex", index);
@@ -825,6 +843,32 @@ public partial class LauncherWindow : Window
         _isDragging = false;
         _dragFromIndex = -1;
         HideDropIndicator();
+
+        // DoDragDrop a consommé le MouseUp : ResultsList_PreviewMouseLeftButtonUp
+        // ne sera pas appelé. Si le geste n'a rien réordonné ET s'est terminé tout
+        // près de son point de départ, c'était un clic et non un glisser : on
+        // rejoue l'action de clic. Un vrai glisser annulé se termine loin du
+        // départ et ne déclenche donc aucun lancement.
+        if (!_pinReorderPerformed && EndedNearDragStart())
+            TryLaunchOnClick();
+    }
+
+    /// <summary>
+    /// Indique si le pointeur est revenu à proximité immédiate du point où le
+    /// glisser a commencé — signature d'un clic parasité par un tremblement de
+    /// la main plutôt que d'un vrai glisser-déposer.
+    /// </summary>
+    private bool EndedNearDragStart()
+    {
+        // Mouse.GetPosition() n'est PAS fiable ici : après la boucle modale de
+        // DoDragDrop elle renvoie des coordonnées périmées (mesuré : (-304,-316)
+        // pour un pointeur réellement à (333,43)). On réinterroge donc Win32.
+        if (!NativeMethods.GetCursorPos(out var screenPoint))
+            return false;
+
+        var end = ResultsList.PointFromScreen(new System.Windows.Point(screenPoint.X, screenPoint.Y));
+        return Math.Abs(end.X - _dragStartPoint.X) <= Constants.PinClickFallbackRadiusPx
+            && Math.Abs(end.Y - _dragStartPoint.Y) <= Constants.PinClickFallbackRadiusPx;
     }
 
     private void ResultsList_DragOver(object sender, System.Windows.DragEventArgs e)
@@ -879,6 +923,7 @@ public partial class LauncherWindow : Window
         if (fromIndex != toIndex && toIndex >= 0 && toIndex < _viewModel.PinnedItemCount)
         {
             _viewModel.ReorderPinnedItem(fromIndex, toIndex);
+            _pinReorderPerformed = true;
         }
     }
 

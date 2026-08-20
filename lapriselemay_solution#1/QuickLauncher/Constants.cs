@@ -33,6 +33,23 @@ public static class Constants
     // Timeouts
     public const int IndexingBatchSize = 100;
     public const int SearchDebounceMs = 50;
+
+    // Glisser-déposer des épingles.
+    // Volontairement plus élevé que SystemParameters.MinimumHorizontalDragDistance
+    // (4 px) : dans la liste de résultats un simple clic LANCE l'élément, et
+    // DragDrop.DoDragDrop() ouvre une boucle modale qui capture la souris et avale
+    // le MouseUp. Avec le seuil système, le tremblement normal de la main pendant
+    // un clic suffisait à démarrer un glisser et donc à tuer le lancement au clic
+    // simple. 12 px demandent un geste délibéré.
+    public const double PinDragThresholdPx = 12;
+
+    /// <summary>
+    /// Rayon autour du point de départ en deçà duquel un glisser terminé sans
+    /// réordonnancement est réinterprété comme un clic. Doit rester nettement
+    /// inférieur à la hauteur d'une ligne pour ne pas transformer l'annulation
+    /// d'un vrai glisser en lancement.
+    /// </summary>
+    public const double PinClickFallbackRadiusPx = 22;
     
     // AI Debounce
     public const int AiDebounceSecondsDefault = 3;

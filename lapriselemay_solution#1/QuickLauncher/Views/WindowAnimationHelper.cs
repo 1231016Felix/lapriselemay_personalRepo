@@ -281,9 +281,23 @@ public sealed class WindowAnimationHelper
         var staggerMs = Math.Max(0, Settings.Appearance.StaggerDelayMs);
         var beginTime = TimeSpan.FromMilliseconds(index * staggerMs);
 
-        var tg = item.RenderTransform as TransformGroup;
-        var scale = tg?.Children.OfType<ScaleTransform>().FirstOrDefault();
-        var translate = tg?.Children.OfType<TranslateTransform>().FirstOrDefault();
+        // Le TransformGroup vient d'un Setter de Style : WPF gèle (seals) les
+        // Freezable déclarés dans un Style et les partage entre TOUS les
+        // conteneurs. BeginAnimation lançait donc « Impossible d'animer la
+        // propriété 'Y' [...] car l'objet est sealed ou gelé » à chaque item
+        // chargé — exception avalée par le gestionnaire global, d'où des
+        // animations de liste mortes et un journal saturé.
+        // On donne à chaque conteneur son propre groupe modifiable.
+        if (item.RenderTransform is not TransformGroup tg || tg.IsFrozen || tg.Children.Count < 2)
+        {
+            tg = new TransformGroup();
+            tg.Children.Add(new ScaleTransform(1, 1));
+            tg.Children.Add(new TranslateTransform(0, 0));
+            item.RenderTransform = tg;
+        }
+
+        var scale = tg.Children.OfType<ScaleTransform>().FirstOrDefault();
+        var translate = tg.Children.OfType<TranslateTransform>().FirstOrDefault();
 
         item.CacheMode = SharedGpuCache;
 

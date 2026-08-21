@@ -353,17 +353,25 @@ public partial class App : Application
     /// des dictionnaires de ressources et l'instanciation des convertisseurs —
     /// d'où une première ouverture nettement plus lente que les suivantes.
     ///
-    /// On ne force volontairement PAS la création du HWND via Show()/Hide() :
-    /// l'application démarrant avec Windows, un Show() même totalement transparent
-    /// prendrait le focus pendant l'ouverture de session. Une passe de mesure
-    /// couvre l'essentiel du coût sans jamais toucher au premier plan.
+    /// EnsureHandle crée le HWND et la cible de rendu WPF sans afficher la
+    /// fenêtre ni lui donner le focus. C'est ce que payait le tout premier
+    /// Show() — et ce qui faisait clignoter la première ouverture, alors que
+    /// les suivantes étaient déjà fluides. Un Show()/Hide() invisible aurait
+    /// eu le même effet, mais volerait le focus à l'ouverture de session
+    /// puisque l'application démarre avec Windows.
     /// </summary>
     private void PrewarmLauncherWindow()
     {
         try
         {
             var window = EnsureLauncherWindow();
-            window.Measure(new System.Windows.Size(window.Width, double.PositiveInfinity));
+            
+            new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
+            
+            // Le HWND existe : la passe de layout fait maintenant un vrai travail
+            // (expansion des templates, mesure et arrangement de tout l'arbre).
+            window.UpdateLayout();
+            
             _logger.Info("Fenêtre du launcher préchargée");
         }
         catch (Exception ex)

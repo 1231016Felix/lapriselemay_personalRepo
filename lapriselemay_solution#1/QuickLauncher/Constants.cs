@@ -6,7 +6,7 @@ namespace QuickLauncher;
 public static class Constants
 {
     public const string AppName = "QuickLauncher";
-    public const string Version = "1.2.2";
+    public const string Version = "1.2.3";
     
     /// <summary>Repo GitHub servant de source pour les mises à jour automatiques (Velopack).</summary>
     public const string UpdateRepositoryUrl = "https://github.com/1231016Felix/lapriselemay_personalRepo";

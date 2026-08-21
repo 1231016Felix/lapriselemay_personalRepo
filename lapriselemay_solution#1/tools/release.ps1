@@ -20,6 +20,8 @@
 
 .PARAMETER DryRun
     Build et package localement, mais ne touche ni à git ni à GitHub.
+    Le bump de version est annulé avant de rendre la main : le dépôt ressort
+    propre, et le même numéro reste donc publiable ensuite pour de vrai.
     À utiliser pour valider une release avant de la rendre publique.
 
 .EXAMPLE
@@ -353,9 +355,20 @@ try {
     Write-Ok "Installateur généré ($setupMb Mo)"
 
     if ($DryRun) {
+        # Le bump ne doit pas survivre à un DryRun, exactement comme il ne
+        # survit pas à un échec. Le laisser en place rendait le mode inutilisable
+        # deux fois de suite : la vérification « working tree propre » faisait
+        # échouer le run suivant, y compris un second DryRun. Pire, après un
+        # DryRun en 1.2.2, publier réellement 1.2.2 échouait sur « la version
+        # n'est pas supérieure à la version actuelle » — alors que valider une
+        # version avant de la publier est précisément le but du mode.
+        # Les paquets produits gardent le numéro testé : c'est ce qu'on voulait.
+        git checkout -- $Csproj $ConstantsCs 2>$null
+        $versionBumped = $false
+
         Write-Host ''
         Write-Host "  DryRun terminé. Paquets dans : $ReleasesDir" -ForegroundColor Yellow
-        Write-Warn 'Les fichiers de version restent modifiés localement (non commités)'
+        Write-Ok 'Numéros de version restaurés dans le dépôt'
         return
     }
 

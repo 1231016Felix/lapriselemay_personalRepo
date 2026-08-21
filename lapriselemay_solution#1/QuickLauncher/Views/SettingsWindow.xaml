@@ -17,6 +17,34 @@
             </CollectionViewSource.GroupDescriptions>
         </CollectionViewSource>
         
+        <!-- Template partagé de l'onglet Guide : une ligne = une commande.
+             Les listes du Guide sont générées depuis les commandes configurées,
+             elles ne peuvent donc plus se désynchroniser du code. -->
+        <DataTemplate x:Key="GuideCommandTemplate">
+            <Grid Margin="0,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="175"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <TextBlock Grid.Column="0" Text="{Binding Icon}" FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding FullPrefix}" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
+                    <TextBlock Text="{Binding ArgumentHint}" Foreground="{DynamicResource TextTertiaryBrush}" FontFamily="Consolas" FontSize="10" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+                <TextBlock Grid.Column="2" Text="{Binding Description}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center"/>
+            </Grid>
+        </DataTemplate>
+        
         <Style x:Key="SettingsCheckBox" TargetType="CheckBox">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
             <Setter Property="Margin" Value="0,6"/>
@@ -1229,137 +1257,19 @@
                                 <TextBlock Text="⚡ Commandes système (:commande)" Style="{StaticResource SectionLabel}" FontSize="14" Margin="0,0,0,8"/>
                                 <Border Style="{StaticResource SettingsCard}">
                                     <StackPanel>
-                                        <TextBlock Text="Tapez ':' suivi du nom de la commande dans la barre de recherche. Les commandes activables/désactivables sont configurables dans l'onglet Commandes." Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"/>
-                                        
-                                        <!-- Productivité -->
-                                        <TextBlock Text="Productivité" Foreground="{DynamicResource SuccessBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":timer 5m café" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Créer une minuterie (5m, 30s, 1h30m)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":note texte" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Créer une note sticky sur le bureau" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":find terme" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Recherche fichiers sur tout le système" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":screenshot" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Capture d'écran (snip, primary)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
-                                        </Grid>
-                                        
-                                        <!-- Intégrations web -->
-                                        <TextBlock Text="Intégrations web" Foreground="{DynamicResource AccentBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,8,0,4"/>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":weather" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Météo (ville par défaut ou spécifiée)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":translate hello" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Traduction auto ou ciblée (fr, en>fr)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":ai question" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Question IA (ChatGPT, Gemini, Ollama)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
-                                        </Grid>
-                                        
-                                        <!-- Multimédia -->
-                                        <TextBlock Text="Multimédia" Foreground="{DynamicResource WarningBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,8,0,4"/>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":volume 75" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Volume (0-100, up, down, mute)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":mute" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Basculer le mode muet" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":brightness 50" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Luminosité écran (0-100)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        
-                                        <!-- Réseau -->
-                                        <TextBlock Text="Réseau" Foreground="{DynamicResource AccentBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,8,0,4"/>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":wifi on/off" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Activer/désactiver le WiFi" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":flushdns" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Vider le cache DNS" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        
-                                        <!-- Session -->
-                                        <TextBlock Text="Session" Foreground="{DynamicResource DangerBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,8,0,4"/>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":lock" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Verrouiller la session" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":sleep / :hibernate" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Veille / Hibernation" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":shutdown / :restart" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Éteindre / Redémarrer le PC" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":logoff" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Déconnecter la session" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        
-                                        <!-- Outils système (sous-section colorée) -->
-                                        <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="4" Padding="10,8" Margin="0,10,0,0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1,0,0,0">
-                                            <StackPanel>
-                                                <TextBlock Text="🛠️ Outils système" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":taskmgr" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Gestionnaire des tâches" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":winsettings" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Paramètres Windows" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":control" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Panneau de configuration" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":emptybin" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Vider la corbeille" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":emptytemp" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Nettoyer le dossier Temp" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":cmd / :powershell" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Terminal admin (CMD ou PS)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":restartexplorer" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Redémarrer l'Explorateur" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":startup" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Dossier de démarrage Windows" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":hosts" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Éditer le fichier hosts (admin)" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":process kill nom" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Tuer un processus par nom" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text=":disk" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Espace disque disponible" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                            </StackPanel>
-                                        </Border>
+                                        <TextBlock Text="Tapez ':' suivi du préfixe dans la barre de recherche. Cette liste est générée automatiquement depuis vos commandes : elle reste synchronisée avec l'onglet Commandes, même si vous renommez un préfixe." Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                                        <ItemsControl x:Name="GuideSystemCommandsList" ItemTemplate="{StaticResource GuideCommandTemplate}">
+                                            <ItemsControl.GroupStyle>
+                                                <GroupStyle>
+                                                    <GroupStyle.HeaderTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding Name}" Foreground="{DynamicResource AccentBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,10,0,4"/>
+                                                        </DataTemplate>
+                                                    </GroupStyle.HeaderTemplate>
+                                                </GroupStyle>
+                                            </ItemsControl.GroupStyle>
+                                        </ItemsControl>
+                                        <TextBlock Text="Les commandes grisées sont désactivées dans l'onglet Commandes." Foreground="{DynamicResource TextTertiaryBrush}" FontSize="10" FontStyle="Italic" Margin="0,10,0,0"/>
                                     </StackPanel>
                                 </Border>
                                 
@@ -1367,31 +1277,8 @@
                                 <TextBlock Text="🚀 Commandes application (::commande)" Style="{StaticResource SectionLabel}" FontSize="14" Margin="0,10,0,8"/>
                                 <Border Style="{StaticResource SettingsCard}">
                                     <StackPanel>
-                                        <TextBlock Text="Commandes internes de QuickLauncher. Utilisez le préfixe '::' pour les distinguer des commandes système." Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"/>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="120"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="::settings" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Ouvrir ces paramètres" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="120"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="::reload" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Reconstruire l'index de recherche" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="120"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="::history" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Voir l'historique de recherche" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="120"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="::clear" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Effacer l'historique de recherche" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="120"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="::help" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Afficher les commandes disponibles" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
-                                        <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="120"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="::quit" Foreground="{DynamicResource AccentBrush}" FontFamily="Consolas" FontSize="11"/>
-                                            <TextBlock Grid.Column="1" Text="Fermer QuickLauncher" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
-                                        </Grid>
+                                        <TextBlock Text="Commandes internes de QuickLauncher. Utilisez le préfixe '::' pour les distinguer des commandes système." Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                                        <ItemsControl x:Name="GuideAppCommandsList" ItemTemplate="{StaticResource GuideCommandTemplate}"/>
                                     </StackPanel>
                                 </Border>
                                 

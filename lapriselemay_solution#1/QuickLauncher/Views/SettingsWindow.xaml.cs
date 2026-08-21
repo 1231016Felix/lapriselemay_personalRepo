@@ -1104,11 +1104,38 @@ public partial class SettingsWindow : Window
                     .ToList();
                 AppCommandsList.ItemsSource = appCommands;
             }
+            
+            LoadGuideCommands();
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"[Settings] ERREUR LoadSystemCommands: {ex.Message}");
         }
+    }
+    
+    /// <summary>
+    /// Alimente les listes de l'onglet Guide à partir des commandes réellement
+    /// définies. Le Guide ne peut donc plus se désynchroniser du code : toute
+    /// commande ajoutée à DefaultSystemCommands y apparaît automatiquement.
+    /// </summary>
+    private void LoadGuideCommands()
+    {
+        // Repli sur les défauts si les réglages ne sont pas encore chargés,
+        // pour ne jamais afficher un Guide vide.
+        var source = _settings.SystemCommands is { Count: > 0 }
+            ? _settings.SystemCommands
+            : DefaultSystemCommands.Create();
+        
+        // Ordre conservé (celui de DefaultSystemCommands), groupé par catégorie.
+        var systemView = new CollectionViewSource
+        {
+            Source = source.Where(c => !c.IsAppCommand).ToList()
+        };
+        systemView.GroupDescriptions.Add(
+            new PropertyGroupDescription(nameof(SystemControlCommand.Category)));
+        
+        GuideSystemCommandsList.ItemsSource = systemView.View;
+        GuideAppCommandsList.ItemsSource = source.Where(c => c.IsAppCommand).ToList();
     }
     
     private void MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)

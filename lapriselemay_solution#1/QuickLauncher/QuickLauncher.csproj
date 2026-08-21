@@ -9,7 +9,7 @@
     <ApplicationIcon Condition="Exists('Resources\app.ico')">Resources\app.ico</ApplicationIcon>
     <AssemblyName>QuickLauncher</AssemblyName>
     <RootNamespace>QuickLauncher</RootNamespace>
-    <Version>1.2.1</Version>
+    <Version>1.2.2</Version>
     <Description>Application Launcher style Spotlight/PowerToys Run</Description>
     <StartupObject>QuickLauncher.App</StartupObject>
     <ApplicationManifest>app.manifest</ApplicationManifest>

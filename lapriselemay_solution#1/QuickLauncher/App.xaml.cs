@@ -118,6 +118,10 @@ public partial class App : Application
             
             _logger.Info("Démarrage terminé!");
             
+            // Construire la fenêtre du launcher dès que le dispatcher est libre,
+            // pour que le premier appui sur le raccourci n'ait plus à la payer.
+            _ = Dispatcher.InvokeAsync(PrewarmLauncherWindow, DispatcherPriority.ApplicationIdle);
+            
             // Vérification des mises à jour en arrière-plan (non bloquante).
             // Volontairement après "Démarrage terminé" : un repo injoignable ou
             // un réseau lent ne doit jamais retarder l'affichage du launcher.
@@ -321,24 +325,68 @@ public partial class App : Application
         Dispatcher.Invoke(ShowLauncher);
     }
 
+    /// <summary>
+    /// Crée la fenêtre du launcher au premier appel et branche ses événements.
+    ///
+    /// La fenêtre est un singleton DI réutilisé entre Show/Hide. OnClosing est
+    /// overridé pour empêcher la fermeture (Cancel + Hide), donc l'instance
+    /// reste toujours valide une fois créée.
+    /// </summary>
+    private LauncherWindow EnsureLauncherWindow()
+    {
+        if (_launcherWindow is null)
+        {
+            _launcherWindow = Services.GetRequiredService<LauncherWindow>();
+            _launcherWindow.RequestOpenSettings += (_, _) => Dispatcher.Invoke(ShowSettings);
+            _launcherWindow.RequestQuit += (_, _) => Dispatcher.Invoke(ExitApplication);
+            _launcherWindow.RequestReindex += async (_, _) => await Dispatcher.InvokeAsync(async () => await ReindexAsync());
+        }
+        
+        return _launcherWindow;
+    }
+    
+    /// <summary>
+    /// Construit la fenêtre du launcher à l'avance, pendant un temps mort du dispatcher.
+    ///
+    /// Sans ce préchargement, le tout premier appui sur le raccourci payait la
+    /// résolution DI, le parsing BAML complet de LauncherWindow.xaml, la résolution
+    /// des dictionnaires de ressources et l'instanciation des convertisseurs —
+    /// d'où une première ouverture nettement plus lente que les suivantes.
+    ///
+    /// On ne force volontairement PAS la création du HWND via Show()/Hide() :
+    /// l'application démarrant avec Windows, un Show() même totalement transparent
+    /// prendrait le focus pendant l'ouverture de session. Une passe de mesure
+    /// couvre l'essentiel du coût sans jamais toucher au premier plan.
+    /// </summary>
+    private void PrewarmLauncherWindow()
+    {
+        try
+        {
+            var window = EnsureLauncherWindow();
+            window.Measure(new System.Windows.Size(window.Width, double.PositiveInfinity));
+            _logger.Info("Fenêtre du launcher préchargée");
+        }
+        catch (Exception ex)
+        {
+            // Best-effort : un échec ici ne coûte qu'une première ouverture plus lente.
+            _logger.Warning($"Préchargement de la fenêtre ignoré: {ex.Message}");
+        }
+    }
+
     public void ShowLauncher()
     {
         try
         {
-            // La fenêtre est un singleton DI réutilisé entre Show/Hide.
-            // OnClosing est overridé pour empêcher la fermeture (Cancel + Hide),
-            // donc l'instance reste toujours valide.
-            if (_launcherWindow is null)
-            {
-                _launcherWindow = Services.GetRequiredService<LauncherWindow>();
-                _launcherWindow.RequestOpenSettings += (_, _) => Dispatcher.Invoke(ShowSettings);
-                _launcherWindow.RequestQuit += (_, _) => Dispatcher.Invoke(ExitApplication);
-                _launcherWindow.RequestReindex += async (_, _) => await Dispatcher.InvokeAsync(async () => await ReindexAsync());
-            }
+            var window = EnsureLauncherWindow();
             
-            _launcherWindow.Show();
-            _launcherWindow.Activate();
-            _launcherWindow.FocusSearchBox();
+            // L'ordre compte : tout le setup (settings, contenu, position, état de
+            // départ de l'animation) doit être fait AVANT Show(), sinon la fenêtre
+            // est présentée dans son état précédent puis remise à zéro par
+            // l'animation — elle apparaît, disparaît, et s'anime seulement après.
+            window.PrepareForShow();
+            window.Show();
+            window.Activate();
+            window.BeginShowAnimation();
         }
         catch (Exception ex)
         {

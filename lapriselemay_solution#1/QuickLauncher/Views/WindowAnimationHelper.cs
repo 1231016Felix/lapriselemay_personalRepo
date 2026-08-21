@@ -40,8 +40,12 @@ public sealed class WindowAnimationHelper
     /// <summary>Incrémente la génération de recherche (appelé quand Results est vidée).</summary>
     public void IncrementSearchGeneration() => _searchGeneration++;
 
-    // ── Constantes & ressources partagées ──
-    private const int AnimationFrameRate = 60;
+    // ── Ressources partagées ──
+    // Aucune limite de fréquence d'images n'est imposée aux animations :
+    // Timeline.SetDesiredFrameRate(anim, 60) forçait le moteur de timing à 60 im/s,
+    // ce qui produit un battement visible sur les écrans 120/144 Hz (les images
+    // calculées ne tombent pas sur les rafraîchissements). Sans plafond, WPF suit
+    // la cadence du compositeur et le mouvement est fluide quel que soit l'écran.
 
     private static readonly IEasingFunction EaseOut;
     private static readonly IEasingFunction EaseIn;
@@ -88,15 +92,31 @@ public sealed class WindowAnimationHelper
     //  SHOW / HIDE FENÊTRE
     // ═══════════════════════════════════════════════════════
 
+    // Valeurs de départ de l'animation d'ouverture, par style.
+    // Un seul endroit les définit : PrepareShowState les applique avant Show(),
+    // PlayShowAnimation anime depuis exactement ces mêmes valeurs.
+    private static (double Opacity, double TranslateY, double Scale) StartState(AnimationStyle style) => style switch
+    {
+        AnimationStyle.FadeSlide => (0, -6, 1),
+        AnimationStyle.Fade      => (0, 0, 1),
+        AnimationStyle.Scale     => (0, 0, 0.95),
+        AnimationStyle.Slide     => (1, -8, 1),
+        AnimationStyle.Pop       => (0, 0, 0.88),
+        _                        => (0, 0, 1)
+    };
+
     /// <summary>
-    /// Animation d'apparition selon le style configuré.
-    /// Invalide tout hide en cours pour éviter que son Completed ne cache la fenêtre.
+    /// Applique l'état visuel de DÉPART de l'animation d'ouverture, sans rien animer.
+    ///
+    /// À appeler AVANT <c>Window.Show()</c>. Sinon le compositeur présente d'abord la
+    /// fenêtre dans son état précédent (souvent entièrement opaque), puis
+    /// <see cref="PlayShowAnimation"/> remet l'opacité à 0 : la fenêtre apparaît
+    /// quelques millisecondes, disparaît, et seulement ensuite l'animation se joue.
     /// </summary>
-    public void PlayShowAnimation()
+    public void PrepareShowState()
     {
         _hideGeneration++;
         _isAnimatingHide = false;
-        _isShowAnimating = true;
 
         ClearAllAnimations();
 
@@ -107,12 +127,39 @@ public sealed class WindowAnimationHelper
             _mainBorderTranslate.Y = 0;
             _mainBorderScale.ScaleX = 1;
             _mainBorderScale.ScaleY = 1;
+            return;
+        }
+
+        var (opacity, translateY, scale) = StartState(Settings.Appearance.AnimationStyle);
+
+        _shadowBorder.Opacity = 0;
+        _mainBorder.Opacity = opacity;
+        _mainBorderTranslate.Y = translateY;
+        _mainBorderScale.ScaleX = scale;
+        _mainBorderScale.ScaleY = scale;
+    }
+
+    /// <summary>
+    /// Animation d'apparition selon le style configuré.
+    /// Invalide tout hide en cours pour éviter que son Completed ne cache la fenêtre.
+    ///
+    /// Idempotent vis-à-vis de <see cref="PrepareShowState"/> : il est réappliqué ici,
+    /// donc appeler PrepareShowState avant Show() ne provoque aucun saut visuel.
+    /// </summary>
+    public void PlayShowAnimation()
+    {
+        PrepareShowState();
+        _isShowAnimating = true;
+
+        if (!Settings.Appearance.EnableAnimations)
+        {
             _isShowAnimating = false;
             return;
         }
 
         _mainBorder.CacheMode = SharedGpuCache;
         var dur = AnimDuration;
+        var (opacity, translateY, scale) = StartState(Settings.Appearance.AnimationStyle);
 
         _shadowBorder.BeginAnimation(UIElement.OpacityProperty, MakeAnim(0, 1, dur, TimeSpan.Zero, EaseOut));
 
@@ -121,47 +168,34 @@ public sealed class WindowAnimationHelper
         switch (Settings.Appearance.AnimationStyle)
         {
             case AnimationStyle.FadeSlide:
-                _mainBorder.Opacity = 0;
-                _mainBorderTranslate.Y = -6;
-                opacityAnim = MakeAnim(0, 1, dur, TimeSpan.Zero, EaseOut);
-                _mainBorderTranslate.BeginAnimation(TranslateTransform.YProperty, MakeAnim(-6, 0, dur, TimeSpan.Zero, EaseOut));
+                opacityAnim = MakeAnim(opacity, 1, dur, TimeSpan.Zero, EaseOut);
+                _mainBorderTranslate.BeginAnimation(TranslateTransform.YProperty, MakeAnim(translateY, 0, dur, TimeSpan.Zero, EaseOut));
                 break;
 
             case AnimationStyle.Fade:
-                _mainBorder.Opacity = 0;
-                _mainBorderTranslate.Y = 0;
-                opacityAnim = MakeAnim(0, 1, dur, TimeSpan.Zero, EaseOut);
+                opacityAnim = MakeAnim(opacity, 1, dur, TimeSpan.Zero, EaseOut);
                 break;
 
             case AnimationStyle.Scale:
-                _mainBorder.Opacity = 0;
-                _mainBorderTranslate.Y = 0;
-                _mainBorderScale.ScaleX = 0.95;
-                _mainBorderScale.ScaleY = 0.95;
-                opacityAnim = MakeAnim(0, 1, dur, TimeSpan.Zero, EaseOut);
-                _mainBorderScale.BeginAnimation(ScaleTransform.ScaleXProperty, MakeAnim(0.95, 1, dur, TimeSpan.Zero, EaseOut));
-                _mainBorderScale.BeginAnimation(ScaleTransform.ScaleYProperty, MakeAnim(0.95, 1, dur, TimeSpan.Zero, EaseOut));
+                opacityAnim = MakeAnim(opacity, 1, dur, TimeSpan.Zero, EaseOut);
+                _mainBorderScale.BeginAnimation(ScaleTransform.ScaleXProperty, MakeAnim(scale, 1, dur, TimeSpan.Zero, EaseOut));
+                _mainBorderScale.BeginAnimation(ScaleTransform.ScaleYProperty, MakeAnim(scale, 1, dur, TimeSpan.Zero, EaseOut));
                 break;
 
             case AnimationStyle.Slide:
-                _mainBorder.Opacity = 1;
-                _mainBorderTranslate.Y = -8;
+                // Pas de fondu : le pilote sert uniquement à déclencher Completed.
                 opacityAnim = MakeAnim(1, 1, dur, TimeSpan.Zero, null);
-                _mainBorderTranslate.BeginAnimation(TranslateTransform.YProperty, MakeAnim(-8, 0, dur, TimeSpan.Zero, EaseOut));
+                _mainBorderTranslate.BeginAnimation(TranslateTransform.YProperty, MakeAnim(translateY, 0, dur, TimeSpan.Zero, EaseOut));
                 break;
 
             case AnimationStyle.Pop:
-                _mainBorder.Opacity = 0;
-                _mainBorderTranslate.Y = 0;
-                _mainBorderScale.ScaleX = 0.88;
-                _mainBorderScale.ScaleY = 0.88;
-                opacityAnim = MakeAnim(0, 1, dur, TimeSpan.Zero, EaseOut);
-                _mainBorderScale.BeginAnimation(ScaleTransform.ScaleXProperty, MakeAnim(0.88, 1, dur, TimeSpan.Zero, BounceOut));
-                _mainBorderScale.BeginAnimation(ScaleTransform.ScaleYProperty, MakeAnim(0.88, 1, dur, TimeSpan.Zero, BounceOut));
+                opacityAnim = MakeAnim(opacity, 1, dur, TimeSpan.Zero, EaseOut);
+                _mainBorderScale.BeginAnimation(ScaleTransform.ScaleXProperty, MakeAnim(scale, 1, dur, TimeSpan.Zero, BounceOut));
+                _mainBorderScale.BeginAnimation(ScaleTransform.ScaleYProperty, MakeAnim(scale, 1, dur, TimeSpan.Zero, BounceOut));
                 break;
 
             default:
-                opacityAnim = MakeAnim(0, 1, dur, TimeSpan.Zero, EaseOut);
+                opacityAnim = MakeAnim(opacity, 1, dur, TimeSpan.Zero, EaseOut);
                 break;
         }
 
@@ -372,7 +406,6 @@ public sealed class WindowAnimationHelper
         int generation, Action onCompleted)
     {
         var anim = new DoubleAnimation(from, to, duration) { EasingFunction = EaseIn };
-        Timeline.SetDesiredFrameRate(anim, AnimationFrameRate);
 
         anim.Completed += (_, _) =>
         {
@@ -391,12 +424,10 @@ public sealed class WindowAnimationHelper
     private static DoubleAnimation MakeAnim(double from, double to, Duration duration,
         TimeSpan beginTime, IEasingFunction? easing)
     {
-        var anim = new DoubleAnimation(from, to, duration)
+        return new DoubleAnimation(from, to, duration)
         {
             BeginTime = beginTime,
             EasingFunction = easing
         };
-        Timeline.SetDesiredFrameRate(anim, AnimationFrameRate);
-        return anim;
     }
 }

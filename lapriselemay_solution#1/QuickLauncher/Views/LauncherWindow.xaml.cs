@@ -383,16 +383,39 @@ public partial class LauncherWindow : Window
         return false;
     }
     
-    public void FocusSearchBox()
+    /// <summary>
+    /// Prépare la fenêtre AVANT <c>Show()</c> : settings rechargés, contenu réinitialisé,
+    /// position calculée et état visuel de départ de l'animation appliqué.
+    ///
+    /// Tout ce travail doit précéder <c>Show()</c>. Fait après, le compositeur présente
+    /// la fenêtre dans son état précédent pendant le rechargement (lecture disque de
+    /// settings.json comprise), puis l'animation la remet à zéro : d'où le flash
+    /// « la fenêtre apparaît, disparaît, puis s'anime ».
+    /// </summary>
+    public void PrepareForShow()
     {
         // Reload synchrone — le ViewModel a besoin des settings à jour pour Reset()
         _settingsProvider.Reload();
         ApplySettings();
         _viewModel.ReloadSettings();
         _viewModel.Reset();
-        CenterOnScreen();
         
-        // L'animation démarre après le setup complet
+        // État de départ de l'animation : la première image présentée est déjà la bonne.
+        _animator.PrepareShowState();
+        
+        // Recalculer la hauteur après Reset() pour centrer sur la taille réelle.
+        // Sans PresentationSource (tout premier affichage), UpdateLayout est un no-op
+        // inoffensif et CenterOnScreen retombe sur sa hauteur par défaut.
+        if (IsLoaded) UpdateLayout();
+        CenterOnScreen();
+    }
+    
+    /// <summary>
+    /// Démarre l'animation d'ouverture et donne le focus. À appeler APRÈS
+    /// <c>Show()</c> / <c>Activate()</c>, une fois la fenêtre réellement à l'écran.
+    /// </summary>
+    public void BeginShowAnimation()
+    {
         _animator.PlayShowAnimation();
         SearchBox.Focus();
         SearchBox.SelectAll();

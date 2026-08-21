@@ -1396,7 +1396,8 @@
                                 <TextBlock Text="🚀" FontSize="36" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                 <StackPanel VerticalAlignment="Center">
                                     <TextBlock Text="QuickLauncher" FontSize="22" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="Version 1.0.0 • Par Felix-Antoine" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
+                                    <!-- Texte réel injecté depuis Constants.Version au chargement -->
+                                    <TextBlock x:Name="AboutVersionText" Text="Version • Par Felix-Antoine" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11"/>
                                 </StackPanel>
                             </StackPanel>
                             

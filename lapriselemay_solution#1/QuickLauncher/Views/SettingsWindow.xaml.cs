@@ -52,6 +52,11 @@ public partial class SettingsWindow : Window
         IBookmarkService? bookmarkService = null)
     {
         InitializeComponent();
+        
+        // Version affichée dans « À propos » : lue depuis Constants.Version, que
+        // release.ps1 bumpe à chaque release. Ne jamais la coder en dur en XAML.
+        AboutVersionText.Text = $"Version {Constants.Version} • Par Felix-Antoine";
+        
         _settingsProvider = settingsProvider;
         _settings = settingsProvider?.Current ?? AppSettings.Load();
         _indexingService = indexingService;

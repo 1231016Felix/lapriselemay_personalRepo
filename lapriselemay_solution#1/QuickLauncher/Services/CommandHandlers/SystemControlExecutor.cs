@@ -57,10 +57,16 @@ public sealed class SystemControlExecutor : ISystemControlExecutor
         if (matchedCmd == null)
             return await ExecuteNormalizedCommandAsync(command);
         
+        // Commande lancée sans l'argument qu'elle attend (clic ou Entrée sur sa suggestion) :
+        // écrire son préfixe dans la barre de recherche pour que l'utilisateur le complète.
+        if (string.IsNullOrWhiteSpace(arg) && NeedsArgument(matchedCmd.Type))
+            return AutoCompletePrefix(matchedCmd);
+        
         return matchedCmd.Type switch
         {
+            // Commandes async (météo, traduction, IA) : le ViewModel les re-route vers le CommandRouter
             SystemControlType.Weather or SystemControlType.Translate or SystemControlType.AiChat
-                => HandleAsyncCommandExecution(matchedCmd, arg),
+                => SystemControlExecutionResult.NotHandled,
             
             SystemControlType.Timer => ExecuteTimer(arg),
             SystemControlType.Note => ExecuteNote(arg),
@@ -81,24 +87,23 @@ public sealed class SystemControlExecutor : ISystemControlExecutor
     }
     
     /// <summary>
-    /// Commandes async (météo, traduction, IA) : redirigent vers le CommandRouter.
-    /// Si pas d'argument, autocomplete le préfixe dans la barre de recherche.
+    /// Commandes qui ne font rien sans argument : lancées sans, elles écrivent leur
+    /// préfixe dans la barre de recherche. Volume, luminosité et WiFi n'en font pas
+    /// partie : sans argument, ils affichent le niveau actuel ou basculent le WiFi.
     /// </summary>
-    private static SystemControlExecutionResult HandleAsyncCommandExecution(SystemControlCommand cmd, string? arg)
+    private static bool NeedsArgument(SystemControlType type) => type is
+        SystemControlType.Timer or SystemControlType.Note or SystemControlType.SystemSearch
+        or SystemControlType.Translate or SystemControlType.AiChat or SystemControlType.ProcessKill;
+    
+    /// <summary>
+    /// Autocomplete : remplit la barre de recherche avec le préfixe de la commande,
+    /// suivi d'un espace, prêt à recevoir l'argument.
+    /// </summary>
+    private static SystemControlExecutionResult AutoCompletePrefix(SystemControlCommand cmd) => new()
     {
-        if (!string.IsNullOrEmpty(arg) || cmd.Type == SystemControlType.Weather)
-        {
-            // Le ViewModel doit re-router via CommandRouter (requête async)
-            return SystemControlExecutionResult.NotHandled;
-        }
-        
-        // Autocomplete : remplir la barre de recherche avec le préfixe
-        return new SystemControlExecutionResult
-        {
-            Handled = true,
-            AutoCompleteText = $":{cmd.Prefix} "
-        };
-    }
+        Handled = true,
+        AutoCompleteText = $"{cmd.FullPrefix} "
+    };
     
     private SystemControlExecutionResult ExecuteTimer(string? arg)
     {

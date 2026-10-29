@@ -78,7 +78,13 @@ public partial class LauncherWindow : Window
         };
         _viewModel.RequestRename += OnRequestRename;
         _viewModel.ShowNotification += OnShowNotification;
-        _viewModel.RequestCaretAtEnd += (_, _) => Dispatcher.BeginInvoke(() => SearchBox.CaretIndex = SearchBox.Text.Length);
+        // Focus explicite : après un clic sur une commande (ex: :note), le focus est sur
+        // l'élément de la liste et l'argument tapé ensuite n'irait pas dans la barre.
+        _viewModel.RequestCaretAtEnd += (_, _) => Dispatcher.BeginInvoke(() =>
+        {
+            SearchBox.Focus();
+            SearchBox.CaretIndex = SearchBox.Text.Length;
+        });
         _viewModel.RequestScreenCapture += OnRequestScreenCapture;
         _viewModel.RequestCreateAlias += OnRequestCreateAlias;
         _viewModel.RequestDeleteConfirmation += OnRequestDeleteConfirmation;

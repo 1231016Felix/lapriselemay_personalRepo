@@ -33,6 +33,9 @@ public partial class App : Application
     /// </summary>
     public static ServiceProvider Services { get; private set; } = null!;
 
+    /// <summary>Garde d'instance unique, détenu pendant toute la vie du processus.</summary>
+    private static SingleInstanceGuard? _singleInstance;
+
     /// <summary>
     /// Point d'entrée explicite (remplace le Main auto-généré par WPF).
     /// Velopack doit s'exécuter en tout premier : lors d'une installation ou d'une
@@ -45,6 +48,14 @@ public partial class App : Application
         VelopackApp.Build()
             .OnFirstRun(_ => UpdateService.OnFirstRun())
             .Run();
+
+        // Instance unique : un deuxième lancement réveille l'instance existante puis se termine.
+        // Le délai de grâce couvre les redémarrages (mise à jour, « Redémarrer »), pendant
+        // lesquels l'ancienne instance est encore en train de se fermer.
+        using var singleInstance = SingleInstanceGuard.TryAcquire(TimeSpan.FromSeconds(5));
+        if (singleInstance == null)
+            return;
+        _singleInstance = singleInstance;
 
         var app = new App();
         app.InitializeComponent();
@@ -118,6 +129,9 @@ public partial class App : Application
                 try { fileWatcherService.Start(); }
                 catch (Exception ex) { _logger.Warning($"Erreur démarrage FileWatcher: {ex.Message}"); }
             }, uiScheduler);
+
+            // Un deuxième lancement de l'application affiche le launcher de cette instance
+            _singleInstance?.ListenForShowRequests(() => Dispatcher.InvokeAsync(ShowLauncher));
 
             _logger.Info("Configuration réindexation auto...");
             SetupAutoReindex();

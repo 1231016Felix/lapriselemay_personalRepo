@@ -319,9 +319,11 @@ public sealed class FileActionExecutor : IFileActionExecutor
             catch { continue; }
         }
         
-        return OpenFile(url);
+        // Aucun navigateur n'a accepté le mode privé : signaler l'échec plutôt que d'ouvrir
+        // l'adresse en navigation NORMALE, à l'opposé de ce que l'utilisateur a demandé.
+        return false;
     }
-    
+
     private static string? GetDefaultBrowserExecutable()
     {
         try

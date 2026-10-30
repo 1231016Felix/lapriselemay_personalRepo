@@ -246,6 +246,8 @@ public sealed class ResultActionService
             // Notification d'échec spécifique
             if (action.ActionType == FileActionType.OpenInVSCode)
                 return new ActionOutcome { Notification = "❌ VS Code introuvable" };
+            if (action.ActionType == FileActionType.OpenPrivate)
+                return new ActionOutcome { Notification = "❌ Navigation privée impossible : aucun navigateur compatible trouvé" };
             
             return ActionOutcome.None;
         }

@@ -30,8 +30,14 @@ public sealed class ActionOutcome
     /// <summary>Demander à la View d'ouvrir le dialogue de renommage.</summary>
     public string? RenameRequestPath { get; init; }
     
-    /// <summary>Demander à la View d'ouvrir le dialogue de création d'alias.</summary>
-    public (string Name, string Path)? CreateAliasRequest { get; init; }
+    /// <summary>Demander à la View d'ouvrir le dialogue de création d'alias (avec le type d'origine).</summary>
+    public (string Name, string Path, ResultType Type)? CreateAliasRequest { get; init; }
+
+    /// <summary>
+    /// Demander au ViewModel d'activer le résultat exactement comme la touche Entrée
+    /// (action « Ouvrir ») : une seule sémantique d'activation pour le clavier et les actions.
+    /// </summary>
+    public bool ActivateRequest { get; init; }
     
     /// <summary>Demander à la View de confirmer la suppression.</summary>
     public SearchResult? DeleteConfirmationRequest { get; init; }
@@ -90,9 +96,13 @@ public sealed class ResultActionService
             
             FileActionType.CreateAlias => new ActionOutcome
             {
-                CreateAliasRequest = (result.Name, result.Path)
+                CreateAliasRequest = (result.Name, result.Path, result.Type)
             },
             
+            // « Ouvrir » suit le même chemin que la touche Entrée (StoreApp, calcul,
+            // commande interne… ne sont pas des chemins de fichier ordinaires)
+            FileActionType.Open => new ActionOutcome { ActivateRequest = true, CloseActionsPanel = true },
+
             FileActionType.Delete => ExecuteDelete(result),
             
             // === Actions gérées en interne ===
@@ -117,10 +127,11 @@ public sealed class ResultActionService
     /// Enregistre un alias via l'AliasService.
     /// </summary>
     /// <returns>Message de notification.</returns>
-    public string SaveAlias(string alias, string targetPath)
+    public string SaveAlias(string alias, string targetPath, ResultType? targetType = null)
     {
-        _aliasService.SetAlias(alias, targetPath);
-        return $"⌨️ Alias '{alias}' créé";
+        return _aliasService.SetAlias(alias, targetPath, targetType: targetType)
+            ? $"⌨️ Alias '{alias}' créé"
+            : $"❌ Alias '{alias}' non enregistré (écriture impossible, voir le journal)";
     }
     
     /// <summary>

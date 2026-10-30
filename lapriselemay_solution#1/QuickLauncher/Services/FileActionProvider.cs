@@ -28,7 +28,11 @@ public class FileActionProvider : IFileActionProvider
     public List<FileAction> GetActionsForResult(SearchResult result, bool isPinned, bool hasAlias = false)
     {
         var actions = new List<FileAction>();
-        
+
+        // Bloc purement informatif (« Chargement… », « Erreur », réponse IA, météo) : aucune action
+        if (result.IsInfoBlock || string.IsNullOrWhiteSpace(result.Path))
+            return actions;
+
         actions.Add(new FileAction
         {
             Name = "Ouvrir",
@@ -78,7 +82,7 @@ public class FileActionProvider : IFileActionProvider
         yield return new FileAction { Name = "Compresser (ZIP)", Icon = "\uE7B8", Description = "Créer une archive ZIP du fichier", ActionType = FileActionType.Compress };
         yield return new FileAction { Name = "Envoyer par email", Icon = "\uE715", Description = "Envoyer le fichier en pièce jointe", ActionType = FileActionType.SendByEmail };
         yield return new FileAction { Name = "Renommer", Icon = "\uE8AC", Description = "Renommer le fichier", Shortcut = "F2", ActionType = FileActionType.Rename };
-        yield return new FileAction { Name = "Supprimer", Icon = "\uE74D", Description = "Envoyer à la corbeille", Shortcut = "Suppr", ActionType = FileActionType.Delete, RequiresConfirmation = true };
+        yield return new FileAction { Name = "Supprimer", Icon = "\uE74D", Description = "Envoyer à la corbeille", Shortcut = "Suppr (liste)", ActionType = FileActionType.Delete, RequiresConfirmation = true };
         yield return new FileAction { Name = "Propriétés", Icon = "\uE946", Description = "Afficher les propriétés du fichier", ActionType = FileActionType.Properties };
     }
     
@@ -104,7 +108,7 @@ public class FileActionProvider : IFileActionProvider
     private static IEnumerable<FileAction> GetBookmarkActions()
     {
         yield return new FileAction { Name = "Ouvrir en privé", Icon = "\uE72E", Description = "Ouvrir en navigation privée", Shortcut = "Ctrl+Maj+Entrée", ActionType = FileActionType.OpenPrivate };
-        yield return new FileAction { Name = "Copier l'URL", Icon = "\uE71B", Description = "Copier l'adresse dans le presse-papiers", Shortcut = "Ctrl+C", ActionType = FileActionType.CopyUrl };
+        yield return new FileAction { Name = "Copier l'URL", Icon = "\uE71B", Description = "Copier l'adresse dans le presse-papiers", ActionType = FileActionType.CopyUrl};
     }
     
     private static IEnumerable<FileAction> GetWebSearchActions()

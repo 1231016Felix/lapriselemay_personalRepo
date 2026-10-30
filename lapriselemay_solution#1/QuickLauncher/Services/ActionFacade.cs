@@ -64,7 +64,8 @@ public sealed class ActionFacade
 
     /// <summary>Enregistre un alias.</summary>
     /// <returns>Message de notification.</returns>
-    public string SaveAlias(string alias, string targetPath) => _resultActionService.SaveAlias(alias, targetPath);
+    public string SaveAlias(string alias, string targetPath, ResultType? targetType = null)
+        => _resultActionService.SaveAlias(alias, targetPath, targetType);
 
     /// <summary>Supprime l'alias associé à un chemin cible.</summary>
     /// <returns>Message de notification, ou null si aucun alias trouvé.</returns>

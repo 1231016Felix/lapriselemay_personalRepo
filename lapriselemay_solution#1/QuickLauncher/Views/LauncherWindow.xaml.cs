@@ -31,6 +31,10 @@ public partial class LauncherWindow : Window
     
     // Flag pour empêcher le HideWindow pendant l'affichage d'un dialogue modal
     private bool _isDialogOpen;
+
+    // « Fermer après lancement » désactivé : la perte de focus causée par le lancement
+    // (l'application lancée passe au premier plan) ne doit pas masquer le launcher.
+    private DateTime _ignoreDeactivationUntil = DateTime.MinValue;
     
     /// <summary>
     /// Accès rapide aux paramètres actuels (toujours à jour via ISettingsProvider).
@@ -63,6 +67,11 @@ public partial class LauncherWindow : Window
     private void SetupEventHandlers()
     {
         _viewModel.RequestHide += (_, _) => HideWindow();
+        _viewModel.RequestKeepOpenAfterLaunch += (_, _) =>
+        {
+            _ignoreDeactivationUntil = DateTime.UtcNow.AddSeconds(2);
+            SearchBox.SelectAll(); // la prochaine frappe remplace la requête précédente
+        };
         _viewModel.RequestOpenSettings += (_, _) =>
         {
             // Le ViewModel appelle RequestHide juste avant → forcer immédiat pour éviter
@@ -147,7 +156,7 @@ public partial class LauncherWindow : Window
         }
     }
     
-    private void OnRequestCreateAlias(object? sender, (string Name, string Path) args)
+    private void OnRequestCreateAlias(object? sender, (string Name, string Path, ResultType Type) args)
     {
         _isDialogOpen = true;
         try
@@ -156,7 +165,8 @@ public partial class LauncherWindow : Window
             
             if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.Alias))
             {
-                _viewModel.SaveAlias(dialog.Alias, args.Path);
+                // Le type d'origine est mémorisé : l'alias sera lancé comme l'élément lui-même
+                _viewModel.SaveAlias(dialog.Alias, args.Path, args.Type);
             }
         }
         finally
@@ -540,7 +550,22 @@ public partial class LauncherWindow : Window
                     _viewModel.ExecuteShortcutAction(FileActionType.OpenInTerminal);
                     e.Handled = true;
                     return;
+
+                case Key.O:
+                    // Ouvrir l'emplacement (raccourci annoncé dans le panneau d'actions)
+                    _viewModel.ExecuteShortcutAction(FileActionType.OpenLocation);
+                    e.Handled = true;
+                    return;
             }
+        }
+
+        // Ctrl+Maj+C : copier le chemin (raccourci annoncé dans le panneau d'actions ;
+        // Ctrl+C reste réservé à la copie du texte de la recherche)
+        if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.C)
+        {
+            _viewModel.ExecuteShortcutAction(FileActionType.CopyPath);
+            e.Handled = true;
+            return;
         }
         
         // Ctrl+Enter: Exécuter en admin
@@ -559,7 +584,11 @@ public partial class LauncherWindow : Window
             return;
         }
         
-        // Raccourcis sans modificateurs
+        // Raccourcis SANS modificateur : Maj+Suppr, Ctrl+Suppr, Ctrl+Flèche… restent au champ
+        // de recherche. Tab garde son rôle même avec Maj, pour ne pas faire sortir le focus.
+        if (Keyboard.Modifiers != ModifierKeys.None && e.Key != Key.Tab)
+            return;
+
         switch (e.Key)
         {
             case Key.Tab:
@@ -615,7 +644,11 @@ public partial class LauncherWindow : Window
                 break;
                 
             case Key.Delete:
-                // Supprimer (délégué au ViewModel → ResultActionService)
+                // Dans la zone de recherche, Suppr efface un caractère (touche d'édition).
+                // Il ne supprime le résultat sélectionné que si la LISTE a le focus ; la
+                // suppression reste aussi disponible dans le panneau d'actions (Tab).
+                if (SearchBox.IsKeyboardFocusWithin)
+                    break;
                 _viewModel.ExecuteShortcutAction(FileActionType.Delete);
                 e.Handled = true;
                 break;
@@ -631,7 +664,9 @@ public partial class LauncherWindow : Window
                 $"Voulez-vous vraiment supprimer '{item.Name}' ?\n\nLe fichier sera envoyé à la corbeille.",
                 "Confirmer la suppression",
                 MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
+                MessageBoxImage.Warning,
+                // « Non » par défaut : une frappe réflexe sur Entrée ne doit rien supprimer.
+                MessageBoxResult.No);
             
             if (result == MessageBoxResult.Yes)
             {
@@ -658,6 +693,9 @@ public partial class LauncherWindow : Window
     {
         // Pendant un hide animé ou un dialogue modal, on ignore
         if (_animator.IsAnimatingHide || _isDialogOpen) return;
+
+        // Lancement avec « Fermer après lancement » désactivé : rester ouvert
+        if (DateTime.UtcNow < _ignoreDeactivationUntil) return;
         
         // Ne pas masquer quand le menu contextuel est ouvert
         // (AllowsTransparency + WindowStyle=None fait que le popup du ContextMenu
@@ -1099,7 +1137,14 @@ public partial class LauncherWindow : Window
         var isPinned = _settings.Search.IsPinned(result.Path);
         var hasAlias = _viewModel.HasAlias(result.Path);
         var actions = _fileActionProvider.GetActionsForResult(result, isPinned, hasAlias);
-        
+
+        // Bloc informatif (réponse IA, météo, « Chargement… ») : aucune action, pas de menu vide
+        if (actions.Count == 0)
+        {
+            contextMenu.IsOpen = false;
+            return;
+        }
+
         // Créer le style pour les items
         var menuItemStyle = (Style)FindResource("ThemedMenuItemStyle");
         

@@ -52,6 +52,13 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     
     [ObservableProperty]
     private bool _isIndexing;
+
+    /// <summary>
+    /// Indicateur « Indexation… » visible : indexation en cours ET option
+    /// « Afficher le statut d'indexation » activée.
+    /// </summary>
+    [ObservableProperty]
+    private bool _showIndexingIndicator;
     
     [ObservableProperty]
     private bool _isSearching;
@@ -91,7 +98,13 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     public event EventHandler<string>? ShowNotification;
     public event EventHandler? RequestCaretAtEnd;
     public event EventHandler<string?>? RequestScreenCapture;
-    public event EventHandler<(string Name, string Path)>? RequestCreateAlias;
+    public event EventHandler<(string Name, string Path, ResultType Type)>? RequestCreateAlias;
+
+    /// <summary>
+    /// Lancement réussi alors que « Fermer après lancement » est désactivé : la View garde
+    /// la fenêtre ouverte (elle ignore la perte de focus provoquée par le lancement).
+    /// </summary>
+    public event EventHandler? RequestKeepOpenAfterLaunch;
     public event EventHandler<SearchResult>? RequestDeleteConfirmation;
 
 
@@ -118,8 +131,10 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         ShowSettingsButton = _settings.Appearance.ShowSettingsButton;
         ShowShortcutHints = _settings.Appearance.ShowShortcutHints;
         
-        _indexingService.IndexingStarted += (_, _) => IsIndexing = true;
-        _indexingService.IndexingCompleted += (_, _) => IsIndexing = false;
+        // Les événements d'indexation arrivent du pool de threads : repasser sur le thread UI
+        _indexingService.IndexingStarted += (_, _) => RunOnUi(() => IsIndexing = true);
+        _indexingService.IndexingCompleted += (_, _) => RunOnUi(() => IsIndexing = false);
+        ShowIndexingIndicator = IsIndexing && _settings.Appearance.ShowIndexingStatus;
         
         // FileWatcher (injecté via DI, optionnel)
         _fileWatcherService = fileWatcherService;
@@ -339,6 +354,20 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
             if (!string.IsNullOrWhiteSpace(SearchText))
                 UpdateResults();
         }, uiScheduler);
+    }
+
+    private static void RunOnUi(Action action)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.CheckAccess())
+            action();
+        else
+            dispatcher.InvokeAsync(action);
+    }
+
+    partial void OnIsIndexingChanged(bool value)
+    {
+        ShowIndexingIndicator = value && _settings.Appearance.ShowIndexingStatus;
     }
 
     private void UpdateResults()
@@ -654,8 +683,16 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         if (SelectedIndex < 0 || SelectedIndex >= Results.Count)
             return;
 
-        var item = Results[SelectedIndex];
+        await ActivateAsync(Results[SelectedIndex]);
+    }
 
+    /// <summary>
+    /// Sémantique d'activation UNIQUE d'un résultat : touche Entrée, clic et action « Ouvrir »
+    /// passent tous ici, si bien qu'une app Store, un calcul ou une commande interne se
+    /// comportent de la même façon quel que soit le chemin emprunté.
+    /// </summary>
+    private async Task ActivateAsync(SearchResult item)
+    {
         switch (item.Type)
         {
             case ResultType.SystemCommand:
@@ -703,9 +740,9 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Enregistre un alias via le ResultActionService.
     /// </summary>
-    public void SaveAlias(string alias, string targetPath)
+    public void SaveAlias(string alias, string targetPath, ResultType? targetType = null)
     {
-        var notification = _actions.SaveAlias(alias, targetPath);
+        var notification = _actions.SaveAlias(alias, targetPath, targetType);
         ShowNotification?.Invoke(this, notification);
     }
     
@@ -760,6 +797,14 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     /// </summary>
     private void ApplyActionOutcome(ActionOutcome outcome, SearchResult result)
     {
+        // « Ouvrir » : même chemin que la touche Entrée
+        if (outcome.ActivateRequest)
+        {
+            ShowActionsPanel = false;
+            _ = ActivateAsync(result);
+            return;
+        }
+
         // Demandes de dialogues UI (la View écoute ces events)
         if (outcome.RenameRequestPath != null)
         {
@@ -809,9 +854,22 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         if (outcome.CloseActionsPanel)
             ShowActionsPanel = false;
         
-        // Masquer le launcher
+        // Masquer le launcher (les actions qui masquent sont des lancements : l'option
+        // « Fermer après lancement » s'applique)
         if (outcome.ShouldHide)
+            HideAfterLaunch();
+    }
+
+    /// <summary>
+    /// Après un lancement réussi : masquer le launcher, sauf si l'option « Fermer après
+    /// lancement » est désactivée — la fenêtre reste alors ouverte pour enchaîner.
+    /// </summary>
+    private void HideAfterLaunch()
+    {
+        if (_settings.CloseAfterLaunch)
             RequestHide?.Invoke(this, EventArgs.Empty);
+        else
+            RequestKeepOpenAfterLaunch?.Invoke(this, EventArgs.Empty);
     }
     
     /// <summary>
@@ -832,7 +890,7 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
             }
 
             _indexingService.RecordUsage(result);
-            RequestHide?.Invoke(this, EventArgs.Empty);
+            HideAfterLaunch();
         }
     }
     
@@ -894,7 +952,7 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         }
 
         _indexingService.RecordUsage(item);
-        RequestHide?.Invoke(this, EventArgs.Empty);
+        HideAfterLaunch();
     }
     
 
@@ -1047,6 +1105,7 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     public void ReloadSettings()
     {
         _settingsProvider.Reload();
+        ShowIndexingIndicator = IsIndexing && _settings.Appearance.ShowIndexingStatus;
         ShowCategoryBadges = _settings.Appearance.ShowCategoryBadges;
         ShowSettingsButton = _settings.Appearance.ShowSettingsButton;
         ShowShortcutHints = _settings.Appearance.ShowShortcutHints;

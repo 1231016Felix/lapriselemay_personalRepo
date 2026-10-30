@@ -127,6 +127,11 @@ public partial class App : Application
             // Construire la fenêtre du launcher dès que le dispatcher est libre,
             // pour que le premier appui sur le raccourci n'ait plus à la payer.
             _ = Dispatcher.InvokeAsync(PrewarmLauncherWindow, DispatcherPriority.ApplicationIdle);
+
+            // Option « Démarrer minimisé » désactivée : afficher le launcher dès le démarrage
+            // (sinon l'application démarre discrètement dans la zone de notification).
+            if (!settings.MinimizeOnStartup)
+                _ = Dispatcher.InvokeAsync(ShowLauncher, DispatcherPriority.ApplicationIdle);
             
             // Vérification des mises à jour en arrière-plan (non bloquante).
             // Volontairement après "Démarrage terminé" : un repo injoignable ou

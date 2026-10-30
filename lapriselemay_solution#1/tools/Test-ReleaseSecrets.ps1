@@ -60,3 +60,7 @@ if ($failures -gt 0) {
 }
 
 Write-Host 'OK : aucun jeton divulgué dans les messages de release.ps1' -ForegroundColor Green
+
+# Sortie explicite : l'échec VOLONTAIRE de cmd.exe ci-dessus laisse $LASTEXITCODE non nul,
+# et l'hôte pwsh de GitHub Actions le propagerait comme code de sortie de l'étape.
+exit 0

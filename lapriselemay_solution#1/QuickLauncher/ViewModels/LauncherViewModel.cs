@@ -544,9 +544,11 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         
         FinalizeResults();
         
-        // Charger les icônes natives en arrière-plan
+        // Les épingles et l'historique ne dépendent pas de la recherche précédente :
+        // Reset() peut avoir déjà annulé son jeton. Laisser leurs icônes se charger
+        // même dans ce cas ; les résultats remplacés ne sont plus liés à l'affichage.
         if (Results.Count > 0)
-            _ = _search.LoadIconsAsync(Results.ToList(), _searchCts?.Token ?? CancellationToken.None);
+            _ = _search.LoadIconsAsync(Results.ToList(), CancellationToken.None);
     }
     
     /// <summary>

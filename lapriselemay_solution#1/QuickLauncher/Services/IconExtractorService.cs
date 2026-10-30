@@ -284,11 +284,14 @@ public static class IconExtractorService
             RecordFailure(path);
         }
         
-        _iconCache.TryAdd(cacheKey, icon);
-        
-        // 3. Sauvegarder dans le cache persistant pour les prochains démarrages
+        // Ne mémoriser que les SUCCÈS : un échec est déjà couvert par le circuit breaker
+        // (5 min de cooldown). Le mettre en cache sous forme de null le rendait définitif,
+        // car ce null était renvoyé avant toute nouvelle tentative après le cooldown.
         if (icon != null)
         {
+            _iconCache.TryAdd(cacheKey, icon);
+
+            // 3. Sauvegarder dans le cache persistant pour les prochains démarrages
             IconCacheService.SaveToCache(path, icon, largeIcon);
         }
         

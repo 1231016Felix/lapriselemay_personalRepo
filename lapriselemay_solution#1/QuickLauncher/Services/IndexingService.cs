@@ -61,7 +61,7 @@ public sealed partial class IndexingService : IDisposable
     public IndexingService(ISettingsProvider settingsProvider,
         FolderFingerprintService fingerprintService, IStoreAppService storeAppService,
         IBookmarkService bookmarkService, IWindowsSettingsProvider windowsSettingsProvider,
-        IShortcutHelper shortcutHelper, ILogger? logger = null)
+        IShortcutHelper shortcutHelper, ILogger? logger = null, string? databasePath = null)
     {
         _settingsProvider = settingsProvider ?? throw new ArgumentNullException(nameof(settingsProvider));
         _fingerprintService = fingerprintService ?? throw new ArgumentNullException(nameof(fingerprintService));
@@ -76,7 +76,7 @@ public sealed partial class IndexingService : IDisposable
             Constants.AppName);
         
         Directory.CreateDirectory(appData);
-        _dbPath = Path.Combine(appData, Constants.DatabaseFileName);
+        _dbPath = databasePath ?? Path.Combine(appData, Constants.DatabaseFileName);
         _connectionString = $"Data Source={_dbPath};Mode=ReadWriteCreate;Cache=Shared";
         
         // Amélioration #2 : connexion persistante en mode WAL pour les opérations fréquentes
@@ -99,23 +99,48 @@ public sealed partial class IndexingService : IDisposable
     /// Crée les tables et index si nécessants. Réutilise la connexion persistante
     /// pour éviter une ouverture/fermeture superflue au démarrage.
     /// </summary>
+    /// <summary>Schéma de la table d'index (exposé pour les tests).</summary>
+    internal const string SchemaSql = """
+        CREATE TABLE IF NOT EXISTS Items (
+            Path TEXT PRIMARY KEY,
+            Name TEXT NOT NULL COLLATE NOCASE,
+            Description TEXT,
+            Type INTEGER NOT NULL,
+            LastUsed TEXT,
+            UseCount INTEGER DEFAULT 0,
+            IndexedAt TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_name ON Items(Name COLLATE NOCASE);
+        CREATE INDEX IF NOT EXISTS idx_usecount ON Items(UseCount DESC);
+        CREATE INDEX IF NOT EXISTS idx_type ON Items(Type);
+        """;
+
+    /// <summary>
+    /// Insère ou met à jour les métadonnées d'un élément SANS toucher à UseCount ni LastUsed.
+    /// L'ancien « INSERT OR REPLACE » supprimait puis recréait la ligne : LastUsed repartait
+    /// à NULL à chaque réindexation et le classement personnalisé se perdait.
+    /// </summary>
+    internal const string UpsertItemSql = """
+        INSERT INTO Items (Path, Name, Description, Type, UseCount, IndexedAt)
+        VALUES (@path, @name, @desc, @type, 0, @indexed)
+        ON CONFLICT(Path) DO UPDATE SET
+            Name = excluded.Name,
+            Description = excluded.Description,
+            Type = excluded.Type,
+            IndexedAt = excluded.IndexedAt
+        """;
+
+    /// <summary>
+    /// Horodatage d'une passe d'indexation (ISO 8601 UTC, triable lexicographiquement).
+    /// Les lignes non revues pendant une passe complète gardent un IndexedAt plus ancien
+    /// et sont balayées à la fin : c'est ce qui remplace les DELETE massifs.
+    /// </summary>
+    private static string NewIndexStamp() => DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
+
     private static void InitializeDatabase(SqliteConnection conn)
     {
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            CREATE TABLE IF NOT EXISTS Items (
-                Path TEXT PRIMARY KEY,
-                Name TEXT NOT NULL COLLATE NOCASE,
-                Description TEXT,
-                Type INTEGER NOT NULL,
-                LastUsed TEXT,
-                UseCount INTEGER DEFAULT 0,
-                IndexedAt TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_name ON Items(Name COLLATE NOCASE);
-            CREATE INDEX IF NOT EXISTS idx_usecount ON Items(UseCount DESC);
-            CREATE INDEX IF NOT EXISTS idx_type ON Items(Type);
-            """;
+        cmd.CommandText = SchemaSql;
         cmd.ExecuteNonQuery();
     }
     
@@ -139,13 +164,13 @@ public sealed partial class IndexingService : IDisposable
 
     private void LoadCacheFromDatabase()
     {
-        _cache.Clear();
-        
+        var fresh = new Dictionary<string, SearchResult>(StringComparer.OrdinalIgnoreCase);
+
         lock (_dbLock)
         {
             using var cmd = _persistentConnection.CreateCommand();
             cmd.CommandText = "SELECT Path, Name, Description, Type, LastUsed, UseCount FROM Items";
-            
+
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
@@ -160,30 +185,42 @@ public sealed partial class IndexingService : IDisposable
                         : DateTime.Parse(reader.GetString(4), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
                     UseCount = reader.GetInt32(5)
                 };
-                _cache[item.Path] = item;
+                fresh[item.Path] = item;
             }
         }
+
+        // Remplacer le contenu SANS fenêtre vide : une recherche concurrente voit l'ancien
+        // ou le nouvel élément, jamais un cache momentanément vidé (l'ancien Clear() le faisait).
+        foreach (var key in _cache.Keys)
+        {
+            if (!fresh.ContainsKey(key))
+                _cache.TryRemove(key, out _);
+        }
+        foreach (var (key, item) in fresh)
+            _cache[key] = item;
     }
 
     public async Task StartIndexingAsync(CancellationToken cancellationToken = default)
     {
         if (IsIndexing) return;
-        
-        await _indexLock.WaitAsync(cancellationToken);
+
+        await _indexLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (IsIndexing) return;
-            
+
             IsIndexing = true;
             _indexingCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             IndexingStarted?.Invoke(this, EventArgs.Empty);
-            
+
             var settings = _settingsProvider.Current;
             _logger.Info("Démarrage de l'indexation...");
-            
+
+            var runStamp = NewIndexStamp();
             var items = new ConcurrentBag<SearchResult>();
+            var unreachableRoots = new ConcurrentBag<string>();
             var token = _indexingCts.Token;
-            
+
             // Indexer les apps Store en parallèle
             var storeTask = Task.Run(() =>
             {
@@ -192,7 +229,7 @@ public sealed partial class IndexingService : IDisposable
                     items.Add(app);
                 _logger.Info($"Apps Store: {storeApps.Count} trouvées");
             }, token);
-            
+
             // Indexer les favoris des navigateurs en parallèle
             var bookmarksTask = Task.Run(() =>
             {
@@ -204,20 +241,24 @@ public sealed partial class IndexingService : IDisposable
                     _logger.Info($"Favoris navigateurs: {bookmarks.Count} trouvés");
                 }
             }, token);
-            
+
             // Ajouter les pages de paramètres Windows (Amélioration #3 : extrait dans WindowsSettingsProvider)
             var windowsSettings = _windowsSettingsProvider.GetItems();
             foreach (var ws in windowsSettings)
                 items.Add(ws);
             _logger.Info($"Paramètres Windows: {windowsSettings.Count} ajoutés");
-            
-            // Indexer les dossiers en parallèle
+
+            // Indexer les dossiers en parallèle. Une racine inaccessible (accès refusé, erreur
+            // d'E/S) est notée : ses entrées existantes ne seront pas balayées.
             var folderTasks = settings.Search.IndexedFolders
-                .Where(Directory.Exists)
-                .Select(folder => Task.Run(() => IndexFolder(folder, items, settings, token), token))
+                .Select(folder => Task.Run(() =>
+                {
+                    if (!IndexFolder(folder, items, settings, token))
+                        unreachableRoots.Add(folder);
+                }, token))
                 .ToArray();
-            
-            await Task.WhenAll([storeTask, bookmarksTask, ..folderTasks]);
+
+            await Task.WhenAll([storeTask, bookmarksTask, ..folderTasks]).ConfigureAwait(false);
 
             // Ajouter les scripts personnalisés
             foreach (var script in settings.Search.Scripts)
@@ -230,23 +271,32 @@ public sealed partial class IndexingService : IDisposable
                     Type = ResultType.Script
                 });
             }
-            
-            // Dédupliquer par (nom + catégorie de type) pour éviter de masquer des fichiers différents portant le même nom.
-            // Application et StoreApp sont regroupés dans la même catégorie car un même programme
-            // peut apparaître via shell:AppsFolder (StoreApp) ET via un raccourci .lnk (Application).
-            // Les items de catégories différentes avec le même nom sont conservés (ex: "Config" fichier + "Config" dossier).
+
+            // Déduplication par IDENTITÉ (cf. DeduplicationHelper.GetIdentityKey) : les entrées
+            // d'application sont fusionnées par nom (raccourci + AppsFolder), mais deux fichiers
+            // homonymes de dossiers différents restent deux éléments.
             var deduplicated = items
-                .GroupBy(i => (Name: i.Name.ToLowerInvariant(), TypeCategory: DeduplicationHelper.GetCategory(i.Type)))
+                .GroupBy(i => DeduplicationHelper.GetIdentityKey(i))
                 .Select(g => g.OrderByDescending(i => i.Type == ResultType.StoreApp ? 1 : 0)
                               .ThenByDescending(i => i.UseCount)
                               .First())
                 .ToList();
-            
+
             _logger.Info($"Total: {deduplicated.Count} éléments (après déduplication)");
-            
-            await SaveToDatabaseAsync(deduplicated, token);
+
+            // UPSERT (usage conservé) puis balayage de ce qui n'a pas été revu. Le balayage
+            // n'a lieu qu'après une passe COMPLÈTE, et jamais sous une racine inaccessible.
+            await SaveToDatabaseAsync(deduplicated, runStamp, token).ConfigureAwait(false);
+
+            var allRoots = settings.Search.IndexedFolders.ToList();
+            var unreachable = unreachableRoots.Select(IndexRules.NormalizeDirectory)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            await SweepAsync(runStamp,
+                path => IndexRules.FindRoot(path, allRoots) is not { } root || !unreachable.Contains(root),
+                token).ConfigureAwait(false);
+
             LoadCacheFromDatabase();
-            
+
             // Sauvegarder les fingerprints pour le prochain démarrage intelligent
             SaveCurrentFingerprints(settings);
         }
@@ -260,13 +310,36 @@ public sealed partial class IndexingService : IDisposable
         }
     }
 
-    private void IndexFolder(string folderPath, ConcurrentBag<SearchResult> items, AppSettings settings, CancellationToken token)
+    /// <summary>
+    /// Indexe une racine. Une racine qui n'existe plus est considérée comme vide (ses entrées
+    /// seront balayées) ; une racine existante mais illisible renvoie <c>false</c> pour que
+    /// ses entrées et leur usage soient conservés.
+    /// </summary>
+    private bool IndexFolder(string folderPath, ConcurrentBag<SearchResult> items, AppSettings settings, CancellationToken token)
     {
+        if (!Directory.Exists(folderPath))
+        {
+            _logger.Info($"Dossier '{folderPath}' introuvable : ignoré");
+            return true;
+        }
+
+        try
+        {
+            using var probe = Directory.EnumerateFileSystemEntries(folderPath).GetEnumerator();
+            probe.MoveNext();
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        {
+            _logger.Warning($"Dossier '{folderPath}' inaccessible, ses entrées sont conservées : {ex.Message}");
+            return false;
+        }
+
         var count = 0;
         IndexFolderRecursive(folderPath, items, settings, ref count, 0, token);
         _logger.Info($"Dossier '{Path.GetFileName(folderPath)}': {count} éléments");
+        return true;
     }
-    
+
     private void IndexFolderRecursive(string folderPath, ConcurrentBag<SearchResult> items,
         AppSettings settings, ref int count, int depth, CancellationToken token)
     {
@@ -359,83 +432,121 @@ public sealed partial class IndexingService : IDisposable
     /// Utilise une connexion éphémère pour ne pas bloquer le CRUD persistant
     /// pendant cette longue transaction (potentiellement des milliers d'INSERTs).
     /// </summary>
-    private async Task SaveToDatabaseAsync(List<SearchResult> items, CancellationToken token)
+    private async Task SaveToDatabaseAsync(List<SearchResult> items, string indexStamp, CancellationToken token)
     {
         await using var conn = new SqliteConnection(_connectionString);
-        await conn.OpenAsync(token);
+        await conn.OpenAsync(token).ConfigureAwait(false);
         ApplyBusyTimeout(conn);
 
         await using var transaction = conn.BeginTransaction();
         try
         {
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                INSERT OR REPLACE INTO Items (Path, Name, Description, Type, UseCount, IndexedAt)
-                VALUES (@path, @name, @desc, @type, 
-                    COALESCE((SELECT UseCount FROM Items WHERE Path = @path), 0), 
-                    @indexed)
-                """;
-            
+            cmd.Transaction = transaction;
+            cmd.CommandText = UpsertItemSql;
+
             var pathParam = cmd.Parameters.Add("@path", SqliteType.Text);
             var nameParam = cmd.Parameters.Add("@name", SqliteType.Text);
             var descParam = cmd.Parameters.Add("@desc", SqliteType.Text);
             var typeParam = cmd.Parameters.Add("@type", SqliteType.Integer);
             var indexedParam = cmd.Parameters.Add("@indexed", SqliteType.Text);
-            
+
             // Pré-compiler la requête pour éviter le re-parse à chaque itération
             cmd.Prepare();
-            
-            var now = DateTime.UtcNow.ToString("o");
+
             var progress = 0;
-            
+
             foreach (var item in items)
             {
-                if (token.IsCancellationRequested) break;
-                
+                token.ThrowIfCancellationRequested();
+
                 pathParam.Value = item.Path;
                 nameParam.Value = item.Name;
-                descParam.Value = item.Description;
+                descParam.Value = item.Description ?? string.Empty;
                 typeParam.Value = (int)item.Type;
-                indexedParam.Value = now;
-                
-                await cmd.ExecuteNonQueryAsync(token);
-                
+                indexedParam.Value = indexStamp;
+
+                await cmd.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+
                 if (++progress % Constants.IndexingBatchSize == 0)
                     IndexingProgress?.Invoke(this, progress);
             }
-            
-            await transaction.CommitAsync(token);
+
+            await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
         }
         catch
         {
-            await transaction.RollbackAsync(token);
+            await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
             throw;
         }
     }
 
+    /// <summary>
+    /// Supprime les lignes qu'une passe n'a pas revues (IndexedAt antérieur à
+    /// <paramref name="runStamp"/>) et qui sont dans la portée de cette passe.
+    /// Ne fait rien si la passe a été annulée : tout ce qui n'a pas encore été revu
+    /// passerait sinon pour disparu.
+    /// </summary>
+    private async Task SweepAsync(string runStamp, Func<string, bool> inScope, CancellationToken token)
+    {
+        if (token.IsCancellationRequested) return;
+
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync(token).ConfigureAwait(false);
+        ApplyBusyTimeout(conn);
+
+        var stale = new List<string>();
+        await using (var select = conn.CreateCommand())
+        {
+            select.CommandText = "SELECT Path FROM Items WHERE IndexedAt < @stamp";
+            select.Parameters.AddWithValue("@stamp", runStamp);
+            await using var reader = await select.ExecuteReaderAsync(token).ConfigureAwait(false);
+            while (await reader.ReadAsync(token).ConfigureAwait(false))
+            {
+                var path = reader.GetString(0);
+                if (inScope(path))
+                    stale.Add(path);
+            }
+        }
+
+        if (stale.Count == 0 || token.IsCancellationRequested) return;
+
+        await using var transaction = conn.BeginTransaction();
+        await using (var delete = conn.CreateCommand())
+        {
+            delete.Transaction = transaction;
+            delete.CommandText = "DELETE FROM Items WHERE Path = @path";
+            var pathParam = delete.Parameters.Add("@path", SqliteType.Text);
+            delete.Prepare();
+            foreach (var path in stale)
+            {
+                pathParam.Value = path;
+                await delete.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+        }
+        await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
+
+        foreach (var path in stale)
+            _cache.TryRemove(path, out _);
+
+        _logger.Info($"[Index] {stale.Count} entrée(s) disparue(s) retirée(s)");
+    }
+
+    /// <summary>
+    /// Réindexation complète à la demande (menu, Ctrl+R, import de favoris, réindexation auto).
+    /// Ne vide plus la table : la passe complète fait un UPSERT puis balaie ce qui a disparu,
+    /// si bien que UseCount et LastUsed survivent aux réindexations.
+    /// </summary>
     public async Task ReindexAsync(CancellationToken cancellationToken = default)
     {
         CancelIndexing();
 
         // L'annulation est COOPÉRATIVE : CancelIndexing() ne fait que lever le drapeau.
-        // Une passe en cours peut encore être dans SaveToDatabaseAsync en train de committer
-        // sa transaction. Purger la table sans attendre laisserait survivre les lignes
-        // écrites après le DELETE — l'index se retrouve avec des entrées fantômes
-        // (fichiers supprimés toujours proposés) ou incomplet.
-        // Prendre _indexLock garantit que la passe précédente est réellement terminée.
-        await _indexLock.WaitAsync(cancellationToken);
+        // Attendre _indexLock garantit que la passe précédente est réellement terminée
+        // avant d'en démarrer une nouvelle.
+        await _indexLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            // Vider la table via la connexion persistante (opération rapide)
-            lock (_dbLock)
-            {
-                using var cmd = _persistentConnection.CreateCommand();
-                cmd.CommandText = "DELETE FROM Items";
-                cmd.ExecuteNonQuery();
-            }
-
-            _cache.Clear();
-
             // Purger le cache de distances fuzzy pour éviter l'accumulation d'entrées périmées
             SearchAlgorithms.ClearCache();
         }
@@ -445,9 +556,9 @@ public sealed partial class IndexingService : IDisposable
             _indexLock.Release();
         }
 
-        await StartIndexingAsync(cancellationToken);
+        await StartIndexingAsync(cancellationToken).ConfigureAwait(false);
     }
-    
+
     public void CancelIndexing() => _indexingCts?.Cancel();
 
     // Search(), CalculateScore() et TryCalculate() ont été déplacés
@@ -490,31 +601,14 @@ public sealed partial class IndexingService : IDisposable
     public void AddOrUpdateItem(string filePath)
     {
         if (string.IsNullOrEmpty(filePath)) return;
-        
+
         try
         {
             var result = CreateSearchResult(filePath);
             if (result == null) return;
-            
-            // Amélioration #2 : connexion persistante
-            lock (_dbLock)
-            {
-                using var cmd = _persistentConnection.CreateCommand();
-                cmd.CommandText = """
-                    INSERT OR REPLACE INTO Items (Path, Name, Description, Type, UseCount, IndexedAt)
-                    VALUES (@path, @name, @desc, @type, 
-                        COALESCE((SELECT UseCount FROM Items WHERE Path = @path), 0), 
-                        @indexed)
-                    """;
-                cmd.Parameters.AddWithValue("@path", result.Path);
-                cmd.Parameters.AddWithValue("@name", result.Name);
-                cmd.Parameters.AddWithValue("@desc", result.Description);
-                cmd.Parameters.AddWithValue("@type", (int)result.Type);
-                cmd.Parameters.AddWithValue("@indexed", DateTime.UtcNow.ToString("o"));
-                cmd.ExecuteNonQuery();
-            }
-            
-            _cache[result.Path] = result;
+
+            // UPSERT : conserve UseCount et LastUsed (base ET cache)
+            UpsertItems([result]);
             _logger.Info($"[Incremental] Ajouté/MàJ: {result.Name}");
         }
         catch (Exception ex)
@@ -522,7 +616,52 @@ public sealed partial class IndexingService : IDisposable
             _logger.Warning($"Erreur AddOrUpdateItem '{filePath}': {ex.Message}");
         }
     }
-    
+
+    /// <summary>
+    /// UPSERT synchrone sur la connexion persistante, puis mise à jour du cache en conservant
+    /// l'usage déjà connu des éléments existants.
+    /// </summary>
+    private void UpsertItems(IReadOnlyCollection<SearchResult> items, string? indexStamp = null)
+    {
+        if (items.Count == 0) return;
+        var stamp = indexStamp ?? NewIndexStamp();
+
+        lock (_dbLock)
+        {
+            using var transaction = _persistentConnection.BeginTransaction();
+            using var cmd = _persistentConnection.CreateCommand();
+            cmd.Transaction = transaction;
+            cmd.CommandText = UpsertItemSql;
+            var pathParam = cmd.Parameters.Add("@path", SqliteType.Text);
+            var nameParam = cmd.Parameters.Add("@name", SqliteType.Text);
+            var descParam = cmd.Parameters.Add("@desc", SqliteType.Text);
+            var typeParam = cmd.Parameters.Add("@type", SqliteType.Integer);
+            var indexedParam = cmd.Parameters.Add("@indexed", SqliteType.Text);
+
+            foreach (var item in items)
+            {
+                pathParam.Value = item.Path;
+                nameParam.Value = item.Name;
+                descParam.Value = item.Description ?? string.Empty;
+                typeParam.Value = (int)item.Type;
+                indexedParam.Value = stamp;
+                cmd.ExecuteNonQuery();
+            }
+
+            transaction.Commit();
+        }
+
+        foreach (var item in items)
+        {
+            if (_cache.TryGetValue(item.Path, out var existing))
+            {
+                item.UseCount = existing.UseCount;
+                item.LastUsed = existing.LastUsed;
+            }
+            _cache[item.Path] = item;
+        }
+    }
+
     /// <summary>
     /// Supprime un fichier de l'index de manière incrémentale.
     /// </summary>
@@ -561,37 +700,181 @@ public sealed partial class IndexingService : IDisposable
     {
         var changeList = changes.ToList();
         if (changeList.Count == 0) return;
-        
+
         _logger.Info($"[Incremental] Traitement de {changeList.Count} changements...");
-        
-        foreach (var change in changeList)
+        var settings = _settingsProvider.Current;
+
+        // 1. Suppressions d'abord : un renommage arrive en Deleted(ancien) + Created(nouveau).
+        var deleted = changeList.Where(c => c.Type == FileChangeType.Deleted).Select(c => c.Path).ToList();
+        if (deleted.Count > 0)
+            RemovePaths(deleted);
+
+        // 2. Créations, arrivées de renommage/déplacement, modifications — avec les MÊMES règles
+        //    que le scan complet (IndexRules) : extensions, profondeur, dossiers cachés.
+        foreach (var change in changeList.Where(c => c.Type is FileChangeType.Created or FileChangeType.Modified))
         {
-            switch (change.Type)
+            try
             {
-                case FileChangeType.Created:
+                if (Directory.Exists(change.Path))
+                {
+                    // Dossier créé, copié, renommé ou déplacé : il peut déjà contenir des fichiers
+                    IndexSubtree(change.Path, settings);
+                }
+                else if (IndexRules.IsEligibleFile(change.Path, settings.Search.IndexedFolders,
+                             settings.Search.FileExtensions, settings.Search.SearchDepth,
+                             settings.Search.IndexHiddenFolders, IndexRules.TryGetAttributes))
+                {
                     AddOrUpdateItem(change.Path);
-                    break;
-                    
-                case FileChangeType.Deleted:
-                    RemoveItem(change.Path);
-                    // La suppression d'un dossier ne génère AUCUN événement pour son
-                    // contenu (le shell déplace l'arborescence d'un bloc) : purger
-                    // aussi les entrées enfants pour ne pas laisser d'items fantômes.
-                    // Heuristique : un chemin sans extension est un dossier potentiel
-                    // (impossible de vérifier sur disque, il n'existe plus).
-                    if (!Path.HasExtension(change.Path))
-                        RemoveItemsByFolder(change.Path);
-                    break;
-                    
-                case FileChangeType.Modified:
-                    AddOrUpdateItem(change.Path);
-                    break;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning($"[Incremental] Erreur sur '{change.Path}': {ex.Message}");
             }
         }
-        
+
+        // 3. Racines dont le watcher a perdu des événements (débordement du tampon)
+        foreach (var change in changeList.Where(c => c.Type == FileChangeType.Rescan))
+            ReconcileRoot(change.Path, settings);
+
         _logger.Info($"[Incremental] Terminé. Cache: {_cache.Count} éléments");
     }
-    
+
+    /// <summary>
+    /// Retire de l'index les chemins supprimés. Un chemin qui n'est pas un élément connu est
+    /// traité comme un dossier potentiel : tout ce qui est indexé dessous est retiré. On ne se
+    /// fie plus à l'absence d'extension (« Project.v2 » est un nom de dossier valide), et le
+    /// lot entier ne coûte qu'une passe sur le cache, quel que soit le nombre de suppressions.
+    /// </summary>
+    private void RemovePaths(IReadOnlyCollection<string> paths)
+    {
+        var toRemove = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var folders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var path in paths)
+        {
+            if (string.IsNullOrEmpty(path)) continue;
+            if (_cache.ContainsKey(path))
+                toRemove.Add(path);
+            else
+                folders.Add(IndexRules.NormalizeDirectory(path));
+        }
+
+        if (folders.Count > 0)
+        {
+            foreach (var key in _cache.Keys)
+            {
+                for (var parent = Path.GetDirectoryName(key); !string.IsNullOrEmpty(parent); parent = Path.GetDirectoryName(parent))
+                {
+                    if (folders.Contains(parent))
+                    {
+                        toRemove.Add(key);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (toRemove.Count == 0) return;
+
+        try
+        {
+            lock (_dbLock)
+            {
+                using var transaction = _persistentConnection.BeginTransaction();
+                using var cmd = _persistentConnection.CreateCommand();
+                cmd.Transaction = transaction;
+                cmd.CommandText = "DELETE FROM Items WHERE Path = @path";
+                var pathParam = cmd.Parameters.Add("@path", SqliteType.Text);
+                foreach (var path in toRemove)
+                {
+                    pathParam.Value = path;
+                    cmd.ExecuteNonQuery();
+                }
+                transaction.Commit();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning($"[Incremental] Erreur de suppression: {ex.Message}");
+        }
+
+        foreach (var path in toRemove)
+        {
+            _cache.TryRemove(path, out _);
+            IconCacheService.Invalidate(path);
+        }
+
+        _logger.Info($"[Incremental] Supprimé {toRemove.Count} élément(s)");
+    }
+
+    /// <summary>
+    /// Indexe le contenu d'un dossier apparu dans une racine (création, copie, renommage ou
+    /// déplacement d'un dossier déjà peuplé), dans les limites du scan complet.
+    /// </summary>
+    private void IndexSubtree(string directory, AppSettings settings)
+    {
+        var roots = settings.Search.IndexedFolders;
+        var root = IndexRules.FindRoot(directory, roots);
+        if (root == null) return;
+
+        if (!IndexRules.IsEligibleDirectory(directory, roots, settings.Search.SearchDepth,
+                settings.Search.IndexHiddenFolders, IndexRules.TryGetAttributes))
+            return;
+
+        var items = new ConcurrentBag<SearchResult>();
+        var count = 0;
+        IndexFolderRecursive(directory, items, settings, ref count,
+            IndexRules.DirectoryDepth(root, directory), CancellationToken.None);
+
+        if (items.IsEmpty) return;
+
+        UpsertItems(items.ToList());
+        _logger.Info($"[Incremental] Sous-arbre '{Path.GetFileName(directory)}': {items.Count} éléments");
+    }
+
+    /// <summary>
+    /// Réconcilie une racine après une perte d'événements du watcher : scan de la racine,
+    /// UPSERT, puis balayage de ce qui n'existe plus, sans toucher aux compteurs d'usage.
+    /// </summary>
+    private void ReconcileRoot(string root, AppSettings settings)
+    {
+        // Une indexation complète en cours couvre déjà ce dossier
+        if (!_indexLock.Wait(0))
+        {
+            _logger.Info($"[Incremental] Réconciliation de '{root}' reportée : indexation en cours");
+            return;
+        }
+
+        try
+        {
+            var items = new ConcurrentBag<SearchResult>();
+            if (!IndexFolder(root, items, settings, CancellationToken.None))
+                return; // racine illisible : ne rien balayer
+
+            var stamp = NewIndexStamp();
+            UpsertItems(items.ToList(), stamp);
+
+            var allRoots = settings.Search.IndexedFolders.ToList();
+            var normalizedRoot = IndexRules.NormalizeDirectory(root);
+            SweepAsync(stamp,
+                    path => string.Equals(IndexRules.FindRoot(path, allRoots), normalizedRoot, StringComparison.OrdinalIgnoreCase),
+                    CancellationToken.None)
+                .GetAwaiter().GetResult();
+
+            LoadCacheFromDatabase();
+            _logger.Info($"[Incremental] Racine '{root}' réconciliée ({items.Count} éléments)");
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning($"[Incremental] Réconciliation de '{root}' impossible : {ex.Message}");
+        }
+        finally
+        {
+            _indexLock.Release();
+        }
+    }
+
     #endregion
     
     #region Smart Persistent Index
@@ -607,89 +890,102 @@ public sealed partial class IndexingService : IDisposable
         if (_cache.Count == 0)
         {
             _logger.Info("[SmartIndex] Cache vide — indexation complète...");
-            await StartIndexingAsync(cancellationToken);
+            await StartIndexingAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
-        
+
         _logger.Info($"[SmartIndex] Cache chargé avec {_cache.Count} éléments. Vérification des changements...");
-        
+
         var settings = _settingsProvider.Current;
-        var comparison = _fingerprintService.CompareWithStored(
+
+        // Le calcul des empreintes parcourt tous les dossiers indexés : jamais sur le thread UI.
+        var comparison = await Task.Run(() => _fingerprintService.CompareWithStored(
             settings.Search.IndexedFolders,
             settings.Search.FileExtensions,
             settings.Search.SearchDepth,
-            settings.Search.IndexHiddenFolders);
-        
+            settings.Search.IndexHiddenFolders), cancellationToken).ConfigureAwait(false);
+
         if (!comparison.HasChanges)
         {
             _logger.Info("[SmartIndex] Aucun changement de dossiers — rafraîchissement des sources volatiles uniquement...");
-            
+
             // Toujours rafraîchir les sources volatiles (Store apps, bookmarks, paramètres Windows)
             // même si les dossiers n'ont pas changé, pour garantir qu'elles sont à jour.
-            await RefreshVolatileSourcesAsync(settings, cancellationToken);
-            
+            await RefreshVolatileSourcesAsync(settings, cancellationToken).ConfigureAwait(false);
+
             IndexingCompleted?.Invoke(this, EventArgs.Empty);
             return;
         }
-        
+
         _logger.Info($"[SmartIndex] Changements: {comparison.NewFolders.Count} nouveaux, " +
                      $"{comparison.ModifiedFolders.Count} modifiés, {comparison.DeletedFolders.Count} supprimés");
-        
-        await _indexLock.WaitAsync(cancellationToken);
+
+        await _indexLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             IsIndexing = true;
             _indexingCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             IndexingStarted?.Invoke(this, EventArgs.Empty);
             var token = _indexingCts.Token;
-            
-            // 1. Supprimer les items des dossiers supprimés
+
+            // 1. Racines retirées de la configuration ou disparues : aucune passe ne les reverra
             foreach (var deletedFolder in comparison.DeletedFolders)
             {
                 RemoveItemsByFolder(deletedFolder);
                 _fingerprintService.RemoveFingerprint(deletedFolder);
             }
-            
-            // 2. Réindexer uniquement les dossiers nouveaux ou modifiés
+
+            // 2. Racines nouvelles ou modifiées : rescannées SANS être vidées d'abord.
+            //    UPSERT (usage conservé) puis balayage limité à ces racines.
             var foldersToIndex = comparison.NewFolders
                 .Concat(comparison.ModifiedFolders)
                 .Where(Directory.Exists)
                 .ToList();
-            
+
             if (foldersToIndex.Count > 0)
             {
+                var runStamp = NewIndexStamp();
                 var items = new ConcurrentBag<SearchResult>();
-                
-                // Pour les dossiers modifiés, supprimer les anciens items d'abord
-                foreach (var modifiedFolder in comparison.ModifiedFolders)
-                {
-                    RemoveItemsByFolder(modifiedFolder);
-                }
-                
-                // Réindexer en parallèle
+                var unreachableRoots = new ConcurrentBag<string>();
+
                 var folderTasks = foldersToIndex
-                    .Select(folder => Task.Run(() => IndexFolder(folder, items, settings, token), token))
+                    .Select(folder => Task.Run(() =>
+                    {
+                        if (!IndexFolder(folder, items, settings, token))
+                            unreachableRoots.Add(folder);
+                    }, token))
                     .ToArray();
-                
-                await Task.WhenAll(folderTasks);
-                
-                // Sauvegarder les nouveaux items
-                var newItems = items.ToList();
-                if (newItems.Count > 0)
-                {
-                    await SaveToDatabaseAsync(newItems, token);
-                    LoadCacheFromDatabase();
-                }
-                
+
+                await Task.WhenAll(folderTasks).ConfigureAwait(false);
+
+                var newItems = items
+                    .GroupBy(i => DeduplicationHelper.GetIdentityKey(i))
+                    .Select(g => g.First())
+                    .ToList();
+
+                await SaveToDatabaseAsync(newItems, runStamp, token).ConfigureAwait(false);
+
+                // Portée du balayage : éléments dont la racine la plus proche a été rescannée
+                // avec succès (une racine imbriquée non modifiée n'est pas touchée).
+                var allRoots = settings.Search.IndexedFolders.ToList();
+                var scanned = foldersToIndex
+                    .Select(IndexRules.NormalizeDirectory)
+                    .Except(unreachableRoots.Select(IndexRules.NormalizeDirectory), StringComparer.OrdinalIgnoreCase)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                await SweepAsync(runStamp,
+                    path => IndexRules.FindRoot(path, allRoots) is { } root && scanned.Contains(root),
+                    token).ConfigureAwait(false);
+
+                LoadCacheFromDatabase();
                 _logger.Info($"[SmartIndex] {newItems.Count} éléments réindexés");
             }
-            
+
             // 3. Réindexer les bookmarks et Store apps (rapide, toujours frais)
-            await RefreshVolatileSourcesAsync(settings, _indexingCts.Token);
-            
+            await RefreshVolatileSourcesAsync(settings, token).ConfigureAwait(false);
+
             // 4. Sauvegarder les nouveaux fingerprints
             SaveCurrentFingerprints(settings);
-            
+
             _logger.Info($"[SmartIndex] Terminé. Cache: {_cache.Count} éléments");
         }
         finally
@@ -701,7 +997,7 @@ public sealed partial class IndexingService : IDisposable
             IndexingCompleted?.Invoke(this, EventArgs.Empty);
         }
     }
-    
+
     /// <summary>
     /// Supprime tous les items de l'index dont le chemin commence par le dossier spécifié.
     /// </summary>
@@ -774,7 +1070,7 @@ public sealed partial class IndexingService : IDisposable
             }
         }, token);
         
-        await Task.WhenAll(storeTask, bookmarksTask);
+        await Task.WhenAll(storeTask, bookmarksTask).ConfigureAwait(false);
         
         // Ajouter les pages de paramètres Windows (toujours présentes)
         var windowsSettings = _windowsSettingsProvider.GetItems();
@@ -804,7 +1100,7 @@ public sealed partial class IndexingService : IDisposable
             if (stalePaths.Count > 0)
             {
                 await using var conn = new SqliteConnection(_connectionString);
-                await conn.OpenAsync(token);
+                await conn.OpenAsync(token).ConfigureAwait(false);
                 ApplyBusyTimeout(conn);
 
                 // SQLite ne supporte pas les paramètres de tableau, on construit la requête
@@ -817,7 +1113,7 @@ public sealed partial class IndexingService : IDisposable
                     deleteCmd.Parameters.AddWithValue(paramName, stalePaths[i]);
                 }
                 deleteCmd.CommandText = $"DELETE FROM Items WHERE Path IN ({string.Join(", ", paramNames)})";
-                var purged = await deleteCmd.ExecuteNonQueryAsync(token);
+                var purged = await deleteCmd.ExecuteNonQueryAsync(token).ConfigureAwait(false);
                 _logger.Info($"[Volatile] Purgé {purged} entrées volatiles périmées de la DB");
             }
         }
@@ -826,11 +1122,11 @@ public sealed partial class IndexingService : IDisposable
             _logger.Warning($"Erreur purge volatiles: {ex.Message}");
         }
         
-        // Sauvegarder les items frais
+        // Sauvegarder les items frais (UPSERT : l'usage des apps et favoris est conservé)
         var newItems = items.ToList();
         if (newItems.Count > 0)
         {
-            await SaveToDatabaseAsync(newItems, token);
+            await SaveToDatabaseAsync(newItems, NewIndexStamp(), token).ConfigureAwait(false);
             LoadCacheFromDatabase();
         }
     }

@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Enchaîne les étapes d'une release Velopack :
-      1. Vérifications préalables (outils, branche, working tree propre)
+      1. Vérifications préalables (outils, branche, working tree propre) et tests unitaires
       2. Bump de la version dans QuickLauncher.csproj et Constants.cs
       3. Publish self-contained win-x64
       4. Récupération de la release précédente (permet les mises à jour delta)
@@ -52,6 +52,7 @@ $Version = $Version.Trim()
 $SolutionDir = Split-Path -Parent $PSScriptRoot
 $ProjectDir  = Join-Path $SolutionDir 'QuickLauncher'
 $Csproj      = Join-Path $ProjectDir 'QuickLauncher.csproj'
+$TestsCsproj = Join-Path $SolutionDir 'QuickLauncher.Tests\QuickLauncher.Tests.csproj'
 $ConstantsCs = Join-Path $ProjectDir 'Constants.cs'
 $IconPath    = Join-Path $ProjectDir 'Resources\app.ico'
 
@@ -96,6 +97,37 @@ function Write-Warn {
     Write-Host "    !   $Message" -ForegroundColor Yellow
 }
 
+function Format-SafeArguments {
+    <#
+        Rend une ligne de commande affichable sans divulguer de secret : la valeur qui suit
+        une option sensible (--token, --password, --api-key, --secret) est remplacée par ***,
+        y compris sous la forme --option=valeur. Les messages d'erreur finissent dans la
+        console, des captures d'écran ou des journaux : un jeton n'y a pas sa place.
+    #>
+    param([string[]] $Arguments)
+
+    $sensitive = '^--(token|password|api-?key|secret)$'
+    $sensitiveInline = '^(--(token|password|api-?key|secret))=.*$'
+    $masked = New-Object System.Collections.Generic.List[string]
+    $hideNext = $false
+
+    foreach ($arg in $Arguments) {
+        if ($hideNext) {
+            $masked.Add('***')
+            $hideNext = $false
+        }
+        elseif ($arg -match $sensitiveInline) {
+            $masked.Add("$($Matches[1])=***")
+        }
+        else {
+            $masked.Add($arg)
+            $hideNext = $arg -match $sensitive
+        }
+    }
+
+    return ($masked -join ' ')
+}
+
 function Invoke-Checked {
     <#
         Exécute une commande externe et lève une exception si son code de
@@ -133,7 +165,7 @@ function Invoke-Checked {
     }
 
     if ($LASTEXITCODE -ne 0) {
-        throw "$ErrorMessage (code $LASTEXITCODE) : $Exe $($Arguments -join ' ')"
+        throw "$ErrorMessage (code $LASTEXITCODE) : $Exe $(Format-SafeArguments $Arguments)"
     }
 }
 
@@ -204,7 +236,7 @@ foreach ($tool in 'dotnet', 'git', 'vpk') {
 }
 Write-Ok 'dotnet, git et vpk présents'
 
-foreach ($file in $Csproj, $ConstantsCs, $IconPath) {
+foreach ($file in $Csproj, $TestsCsproj, $ConstantsCs, $IconPath) {
     if (-not (Test-Path -LiteralPath $file)) {
         throw "Fichier attendu introuvable : $file"
     }
@@ -242,6 +274,29 @@ try {
     }
     Write-Ok "Tag $Tag disponible"
 
+    # QuickLauncher verrouille ses propres binaires quand il tourne : la compilation des
+    # tests puis la copie de l'apphost du publish échoueraient en plein build.
+    $running = Get-Process -Name 'QuickLauncher' -ErrorAction SilentlyContinue
+    if ($running) {
+        $running | Stop-Process -Force
+        Start-Sleep -Seconds 2
+        Write-Warn 'QuickLauncher était en cours d''exécution, il a été fermé'
+    }
+
+    # =================================================================
+    #  Tests unitaires : AVANT le bump, un échec n'a donc rien à annuler
+    # =================================================================
+
+    Write-Step 'Tests unitaires'
+
+    Invoke-Checked -Exe 'dotnet' -ErrorMessage 'Les tests ont échoué : release annulée' -Arguments @(
+        'test', $TestsCsproj,
+        '-c', 'Release',
+        '-v', 'quiet',
+        '-nologo'
+    )
+    Write-Ok 'Tous les tests passent'
+
     # =================================================================
     #  2. Bump de version
     # =================================================================
@@ -264,15 +319,6 @@ try {
     # =================================================================
 
     Write-Step 'Compilation self-contained'
-
-    # QuickLauncher verrouille ses propres binaires quand il tourne : la copie
-    # de l'apphost échouerait en plein build.
-    $running = Get-Process -Name 'QuickLauncher' -ErrorAction SilentlyContinue
-    if ($running) {
-        $running | Stop-Process -Force
-        Start-Sleep -Seconds 2
-        Write-Warn 'QuickLauncher était en cours d''exécution, il a été fermé'
-    }
 
     if (Test-Path -LiteralPath $BuildRoot) {
         Remove-Item -LiteralPath $BuildRoot -Recurse -Force
@@ -307,6 +353,10 @@ try {
     if (-not $DryRun) {
         $token = Get-GitHubToken
 
+        # Le jeton passe par l'environnement (VPK_TOKEN, lu par vpk) et non par la ligne de
+        # commande : il n'apparaît ni dans la liste des processus ni dans un message d'erreur.
+        $env:VPK_TOKEN = $token
+
         # Best-effort : sans la version précédente en local, Velopack produit
         # un paquet complet au lieu d'un delta. La release reste valide, elle
         # est juste plus lourde à télécharger pour les utilisateurs.
@@ -314,8 +364,7 @@ try {
             Invoke-Checked -Exe 'vpk' -ErrorMessage 'Download échoué' -Arguments @(
                 'download', 'github',
                 '--outputDir', $ReleasesDir,
-                '--repoUrl', $RepoUrl,
-                '--token', $token
+                '--repoUrl', $RepoUrl
             )
             Write-Ok 'Release précédente récupérée, les deltas seront générés'
         }
@@ -401,7 +450,6 @@ try {
         'upload', 'github',
         '--outputDir', $ReleasesDir,
         '--repoUrl', $RepoUrl,
-        '--token', $token,
         '--tag', $Tag,
         '--releaseName', "$PackTitle v$Version",
         '--targetCommitish', $Branch,
@@ -431,5 +479,7 @@ catch {
     exit 1
 }
 finally {
+    # Ne jamais laisser le jeton dans l'environnement de la session PowerShell
+    Remove-Item Env:\VPK_TOKEN -ErrorAction SilentlyContinue
     Pop-Location
 }

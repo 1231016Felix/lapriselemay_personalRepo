@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <WindowsSdkPackageVersion>10.0.19041.41</WindowsSdkPackageVersion>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
@@ -43,9 +43,8 @@
     <!-- Injection de dépendances -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     
-    <!-- DPAPI - Chiffrement des données sensibles (clés API) -->
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
-    
+    <!-- DPAPI (ProtectedData) : fourni par le framework Windows Desktop depuis .NET 10 (NU1510). -->
+
     <!-- Installateur + mises à jour automatiques (Velopack) -->
     <PackageReference Include="Velopack" />
   </ItemGroup>

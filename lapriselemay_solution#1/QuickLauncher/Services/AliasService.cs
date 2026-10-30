@@ -49,28 +49,34 @@ public sealed class AliasService : IDisposable
     #region CRUD Operations
 
     /// <summary>
-    /// Ajoute ou met à jour un alias
+    /// Ajoute ou met à jour un alias.
     /// </summary>
-    public void SetAlias(string alias, string targetPath, string? description = null)
+    /// <param name="targetType">Type du résultat d'origine (raccourci, app Store, dossier…) :
+    /// l'alias sera lancé exactement comme cet élément. Null = cible textuelle (commande).</param>
+    /// <returns><c>true</c> si l'alias a été écrit sur disque.</returns>
+    public bool SetAlias(string alias, string targetPath, string? description = null, ResultType? targetType = null)
     {
-        if (string.IsNullOrWhiteSpace(alias)) return;
+        if (string.IsNullOrWhiteSpace(alias)) return false;
 
+        bool saved;
         lock (_lock)
         {
             _aliases[alias.ToLowerInvariant()] = new AliasEntry
             {
                 Alias = alias.ToLowerInvariant(),
                 TargetPath = targetPath,
+                TargetType = targetType,
                 Description = description,
                 CreatedAt = DateTime.Now,
-                UseCount = _aliases.TryGetValue(alias.ToLowerInvariant(), out var existing) 
-                    ? existing.UseCount 
+                UseCount = _aliases.TryGetValue(alias.ToLowerInvariant(), out var existing)
+                    ? existing.UseCount
                     : 0
             };
-            Save();
+            saved = Save();
         }
 
         AliasesChanged?.Invoke(this, EventArgs.Empty);
+        return saved;
     }
 
     /// <summary>
@@ -313,15 +319,11 @@ public sealed class AliasService : IDisposable
 
     private void Load()
     {
-        if (!File.Exists(_aliasFilePath)) return;
+        var entries = TryRead(_aliasFilePath) ?? TryRead(BackupPath);
+        if (entries == null) return;
 
         try
         {
-            var json = File.ReadAllText(_aliasFilePath);
-            var entries = JsonSerializer.Deserialize<List<AliasEntry>>(json);
-            
-            if (entries == null) return;
-
             lock (_lock)
             {
                 _aliases.Clear();
@@ -334,20 +336,57 @@ public sealed class AliasService : IDisposable
                 }
             }
         }
-        catch { /* Ignorer les erreurs de chargement */ }
+        catch (Exception ex)
+        {
+            Log.Error("[Alias] Échec du chargement des alias", ex);
+        }
     }
 
-    private void Save()
+    private string BackupPath => _aliasFilePath + ".bak";
+
+    /// <summary>Lit une liste d'alias ; null si le fichier est absent ou illisible.</summary>
+    private static List<AliasEntry>? TryRead(string path)
+    {
+        if (!File.Exists(path)) return null;
+        try
+        {
+            return JsonSerializer.Deserialize<List<AliasEntry>>(File.ReadAllText(path));
+        }
+        catch (Exception ex)
+        {
+            Log.Warning($"[Alias] Fichier d'alias illisible '{Path.GetFileName(path)}' : {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Écrit les alias de façon atomique (fichier temporaire puis remplacement) en gardant la
+    /// version précédente dans « aliases.json.bak ». Un échec est journalisé et signalé.
+    /// </summary>
+    private bool Save()
     {
         try
         {
-            var json = JsonSerializer.Serialize(_aliases.Values.ToList(), new JsonSerializerOptions 
-            { 
-                WriteIndented = true 
+            var json = JsonSerializer.Serialize(_aliases.Values.ToList(), new JsonSerializerOptions
+            {
+                WriteIndented = true
             });
-            File.WriteAllText(_aliasFilePath, json);
+
+            var tempPath = _aliasFilePath + ".tmp";
+            File.WriteAllText(tempPath, json);
+
+            if (File.Exists(_aliasFilePath))
+                File.Replace(tempPath, _aliasFilePath, BackupPath, ignoreMetadataErrors: true);
+            else
+                File.Move(tempPath, _aliasFilePath);
+
+            return true;
         }
-        catch { /* Ignorer les erreurs de sauvegarde */ }
+        catch (Exception ex)
+        {
+            Log.Error("[Alias] Échec de la sauvegarde des alias", ex);
+            return false;
+        }
     }
 
     private void OnFileChanged(object sender, FileSystemEventArgs e)
@@ -371,12 +410,24 @@ public sealed class AliasService : IDisposable
             Name = entry.Alias,
             Path = entry.TargetPath,
             Description = entry.Description ?? $"Alias → {entry.TargetPath}",
-            Type = ResultType.Command,
+            // Type d'origine conservé : l'alias est lancé exactement comme l'élément qu'il
+            // désigne (raccourci, app Store, dossier, favori…). Sans type connu (alias par
+            // défaut, saisi à la main ou ancien), la cible est une commande, interprétée
+            // sans jamais passer brute par cmd.exe (cf. AliasCommand).
+            Type = ToLaunchType(entry.TargetType),
             Score = baseScore + Math.Min(entry.UseCount * 5, 100),
             UseCount = entry.UseCount,
             LastUsed = entry.LastUsed
         };
     }
+
+    private static ResultType ToLaunchType(ResultType? targetType) => targetType switch
+    {
+        ResultType.Application or ResultType.StoreApp or ResultType.File or ResultType.Folder
+            or ResultType.Script or ResultType.Bookmark or ResultType.WebSearch
+            or ResultType.SystemControl or ResultType.AppControl => targetType.Value,
+        _ => ResultType.Command
+    };
 
     #endregion
 
@@ -399,6 +450,14 @@ public class AliasEntry
 
     [JsonPropertyName("target")]
     public string TargetPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Type du résultat d'origine. Absent pour les alias par défaut, saisis à la main ou
+    /// antérieurs à ce champ : la cible est alors interprétée comme une commande.
+    /// </summary>
+    [JsonPropertyName("targetType")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ResultType? TargetType { get; set; }
 
     [JsonPropertyName("description")]
     public string? Description { get; set; }

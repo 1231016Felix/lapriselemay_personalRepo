@@ -92,7 +92,7 @@ public class LaunchService : ILaunchService
                     return true;
 
                 case ResultType.Command:
-                    StartProcess("cmd.exe", $"/c {item.Path}");
+                    LaunchCommand(item.Path);
                     return true;
 
                 default:
@@ -143,6 +143,24 @@ public class LaunchService : ILaunchService
 
         // Lancement direct (fonctionne pour .exe, .lnk avec UseShellExecute, URLs, etc.)
         StartProcess(path);
+    }
+
+    /// <summary>
+    /// Lance la cible textuelle d'un alias sans jamais la confier brute à l'interpréteur
+    /// (cf. <see cref="AliasCommand"/>). Seule une cible préfixée par « &gt; » est exécutée
+    /// par cmd.exe, en tant que commande shell volontaire.
+    /// </summary>
+    private static void LaunchCommand(string target)
+    {
+        if (AliasCommand.IsShellCommand(target))
+        {
+            // /s : cmd retire seulement les guillemets extérieurs, la commande reste intacte
+            StartProcess("cmd.exe", $"/d /s /c \"{AliasCommand.GetShellCommand(target)}\"");
+            return;
+        }
+
+        var (fileName, arguments) = AliasCommand.Parse(target, p => File.Exists(p) || Directory.Exists(p));
+        StartProcess(AliasCommand.ResolveOnPath(fileName), arguments);
     }
 
     private void LaunchScript(SearchResult item)

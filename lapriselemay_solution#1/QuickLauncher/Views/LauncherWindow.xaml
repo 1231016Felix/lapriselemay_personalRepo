@@ -568,10 +568,10 @@
                         </TextBlock>
                     </StackPanel>
                     
-                    <!-- Indicateur d'indexation -->
+                    <!-- Indicateur d'indexation (masquable : option « Afficher le statut d'indexation ») -->
                     <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Right"
-                                Visibility="{Binding IsIndexing, Converter={StaticResource BoolToVis}}">
+                                Visibility="{Binding ShowIndexingIndicator, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="&#xE895;"
                                    FontFamily="Segoe MDL2 Assets"
                                    FontSize="10"

@@ -45,7 +45,8 @@ public sealed partial class TimerWidgetService
                 Label = label ?? "Minuterie",
                 DurationSeconds = (int)parsedDuration.Value.TotalSeconds,
                 RemainingSeconds = (int)parsedDuration.Value.TotalSeconds,
-                CreatedAt = DateTime.Now
+                CreatedAt = DateTime.Now,
+                EndsAtUtc = DateTime.UtcNow + parsedDuration.Value
             };
             
             // Calculer la position (décalage pour plusieurs widgets)
@@ -63,7 +64,8 @@ public sealed partial class TimerWidgetService
                     parsedDuration.Value,
                     OnWidgetClosed,
                     OnTimerCompleted,
-                    SaveWidgetPosition
+                    SaveWidgetPosition,
+                    SavePauseState
                 );
                 widget.SetPosition(timerInfo.Left, timerInfo.Top);
                 widget.Show();
@@ -113,6 +115,23 @@ public sealed partial class TimerWidgetService
     }
     
     /// <summary>
+    /// Persiste une mise en pause ou une reprise : en pause, le temps restant est figé ;
+    /// en marche, l'échéance UTC est recalculée depuis le temps restant.
+    /// </summary>
+    public void SavePauseState(int timerId, bool isPaused, TimeSpan remaining)
+    {
+        _settingsProvider.Update(s =>
+        {
+            var timer = s.Integrations.TimerWidgets.FirstOrDefault(w => w.Id == timerId);
+            if (timer == null) return;
+
+            timer.IsPaused = isPaused;
+            timer.RemainingSeconds = (int)Math.Ceiling(Math.Max(0, remaining.TotalSeconds));
+            timer.EndsAtUtc = isPaused ? null : DateTime.UtcNow + remaining;
+        });
+    }
+
+    /// <summary>
     /// Sauvegarde la position d'un widget.
     /// </summary>
     public void SaveWidgetPosition(int timerId, double left, double top)
@@ -137,10 +156,10 @@ public sealed partial class TimerWidgetService
         
         foreach (var timerInfo in Settings.Integrations.TimerWidgets.ToList())
         {
-            // Calculer le temps restant depuis la création
-            var elapsed = DateTime.Now - timerInfo.CreatedAt;
-            var remaining = TimeSpan.FromSeconds(timerInfo.DurationSeconds) - elapsed;
-            
+            // Temps restant depuis l'état persisté (pause comprise), et non plus depuis
+            // la seule date de création : une pause passée ou en cours était ignorée.
+            var remaining = timerInfo.GetRemaining(DateTime.UtcNow);
+
             if (remaining <= TimeSpan.Zero)
             {
                 // Timer expiré pendant que l'app était fermée
@@ -156,10 +175,11 @@ public sealed partial class TimerWidgetService
                     TimeSpan.FromSeconds(timerInfo.DurationSeconds),
                     OnWidgetClosed,
                     OnTimerCompleted,
-                    SaveWidgetPosition
+                    SaveWidgetPosition,
+                    SavePauseState
                 );
                 widget.SetPosition(timerInfo.Left, timerInfo.Top);
-                widget.RestoreWithRemaining(remaining);
+                widget.RestoreState(remaining, timerInfo.IsPaused);
                 widget.Show();
                 
                 lock (_lock)

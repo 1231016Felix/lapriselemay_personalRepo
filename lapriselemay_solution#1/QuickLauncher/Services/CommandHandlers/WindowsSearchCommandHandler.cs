@@ -23,7 +23,7 @@ public sealed class WindowsSearchCommandHandler : ICommandHandler
         var cmd = settings.SystemCommands.FirstOrDefault(c => c.Type == SystemControlType.SystemSearch);
         if (cmd is not { IsEnabled: true }) return false;
         var prefix = cmd.Prefix;
-        return query.StartsWith($":{prefix} ") && query.Length > prefix.Length + 2;
+        return query.StartsWith($":{prefix} ", StringComparison.OrdinalIgnoreCase) && query.Length > prefix.Length + 2;
     }
 
     public async Task<CommandResult> ExecuteAsync(string query, CancellationToken token)

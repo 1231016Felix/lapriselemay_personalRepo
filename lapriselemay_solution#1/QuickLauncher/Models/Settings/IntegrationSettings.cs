@@ -62,8 +62,10 @@ public sealed class IntegrationSettings
     public IntegrationSettings Clone()
     {
         var clone = (IntegrationSettings)MemberwiseClone();
-        clone.NoteWidgets = [..NoteWidgets];
-        clone.TimerWidgets = [..TimerWidgets];
+        // Copie PROFONDE des widgets : les services les modifient sur le clone (position,
+        // pause) ; partager les objets reviendrait à muter un snapshot déjà publié.
+        clone.NoteWidgets = NoteWidgets.Select(w => w.Clone()).ToList();
+        clone.TimerWidgets = TimerWidgets.Select(w => w.Clone()).ToList();
         clone.Notes = [..Notes];
         return clone;
     }

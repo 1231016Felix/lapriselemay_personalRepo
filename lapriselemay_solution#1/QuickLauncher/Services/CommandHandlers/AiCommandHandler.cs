@@ -22,7 +22,7 @@ public sealed class AiCommandHandler : ICommandHandler
         var settings = _settingsProvider.Current;
         var cmd = settings.SystemCommands.FirstOrDefault(c => c.Type == SystemControlType.AiChat);
         if (cmd is not { IsEnabled: true }) return false;
-        return query.StartsWith($":{cmd.Prefix} ") && query.Length > cmd.Prefix.Length + 2;
+        return query.StartsWith($":{cmd.Prefix} ", StringComparison.OrdinalIgnoreCase) && query.Length > cmd.Prefix.Length + 2;
     }
 
     public async Task<CommandResult> ExecuteAsync(string query, CancellationToken token)

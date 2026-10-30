@@ -67,8 +67,8 @@ public class SystemControlExecutorTests
     {
         public AppSettings Current { get; } = settings;
         public event EventHandler<AppSettings>? SettingsChanged { add { } remove { } }
-        public void Save() { }
+        public bool Save() => true;
         public void Reload() { }
-        public void Update(Action<AppSettings> updateAction) => updateAction(Current);
+        public bool Update(Action<AppSettings> updateAction) { updateAction(Current); return true; }
     }
 }

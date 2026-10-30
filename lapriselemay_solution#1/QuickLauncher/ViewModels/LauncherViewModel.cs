@@ -52,6 +52,13 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     
     [ObservableProperty]
     private bool _isIndexing;
+
+    /// <summary>
+    /// Indicateur « Indexation… » visible : indexation en cours ET option
+    /// « Afficher le statut d'indexation » activée.
+    /// </summary>
+    [ObservableProperty]
+    private bool _showIndexingIndicator;
     
     [ObservableProperty]
     private bool _isSearching;
@@ -80,6 +87,13 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _showShortcutHints;
     
+    /// <summary>
+    /// Une vue affiche-t-elle réellement le panneau de prévisualisation ? Tant que ce n'est pas
+    /// le cas (LauncherWindow n'a pas de panneau), aucun aperçu n'est calculé : chaque flèche
+    /// ↓ relisait sinon un fichier ou énumérait un dossier pour un résultat jamais affiché.
+    /// </summary>
+    public bool IsPreviewHostAttached { get; set; }
+
     public BatchObservableCollection<SearchResult> Results { get; } = [];
     public ObservableCollection<FileAction> AvailableActions { get; } = [];
     
@@ -91,7 +105,13 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     public event EventHandler<string>? ShowNotification;
     public event EventHandler? RequestCaretAtEnd;
     public event EventHandler<string?>? RequestScreenCapture;
-    public event EventHandler<(string Name, string Path)>? RequestCreateAlias;
+    public event EventHandler<(string Name, string Path, ResultType Type)>? RequestCreateAlias;
+
+    /// <summary>
+    /// Lancement réussi alors que « Fermer après lancement » est désactivé : la View garde
+    /// la fenêtre ouverte (elle ignore la perte de focus provoquée par le lancement).
+    /// </summary>
+    public event EventHandler? RequestKeepOpenAfterLaunch;
     public event EventHandler<SearchResult>? RequestDeleteConfirmation;
 
 
@@ -118,8 +138,10 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         ShowSettingsButton = _settings.Appearance.ShowSettingsButton;
         ShowShortcutHints = _settings.Appearance.ShowShortcutHints;
         
-        _indexingService.IndexingStarted += (_, _) => IsIndexing = true;
-        _indexingService.IndexingCompleted += (_, _) => IsIndexing = false;
+        // Les événements d'indexation arrivent du pool de threads : repasser sur le thread UI
+        _indexingService.IndexingStarted += (_, _) => RunOnUi(() => IsIndexing = true);
+        _indexingService.IndexingCompleted += (_, _) => RunOnUi(() => IsIndexing = false);
+        ShowIndexingIndicator = IsIndexing && _settings.Appearance.ShowIndexingStatus;
         
         // FileWatcher (injecté via DI, optionnel)
         _fileWatcherService = fileWatcherService;
@@ -137,6 +159,11 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
             GhostSuggestionText = string.Empty;
         }
         
+        // Invalider IMMÉDIATEMENT la recherche en vol et sa génération : pendant le debounce
+        // (jusqu'à 4 s pour l'IA), une ancienne réponse ne doit plus pouvoir remplacer
+        // l'affichage de la nouvelle saisie. Seul le démarrage du prochain travail est différé.
+        InvalidatePendingSearch();
+
         // Annuler le debounce précédent et en démarrer un nouveau.
         // Dispose après Cancel : la tâche en vol ne fait que catcher l'OCE et lire
         // IsCancellationRequested, deux opérations sûres sur une source disposée.
@@ -146,6 +173,18 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         _ = DebounceSearchAsync(value, _debounceCts.Token);
     }
     
+    /// <summary>
+    /// Rend caduques la recherche ou la commande asynchrone en cours : annulation de leur
+    /// jeton et nouvelle génération. Leurs résultats, erreurs et indicateurs de chargement
+    /// seront ignorés s'ils arrivent plus tard.
+    /// </summary>
+    private void InvalidatePendingSearch()
+    {
+        _searchCts?.Cancel();
+        Interlocked.Increment(ref _searchGeneration);
+        IsSearching = false;
+    }
+
     /// <summary>
     /// Debounce async : attend un court délai avant de lancer la recherche.
     /// Utilise un délai allongé pour les commandes IA afin de laisser
@@ -235,7 +274,7 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
 
         if (index >= 0 && index < Results.Count)
         {
-            if (_settings.Appearance.ShowPreviewPanel)
+            if (IsPreviewHostAttached && _settings.Appearance.ShowPreviewPanel)
             {
                 _previewCts = new CancellationTokenSource();
                 _ = UpdatePreviewAsync(Results[index], _previewCts.Token);
@@ -277,7 +316,7 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
                 return;
             }
             
-            var preview = await FilePreviewService.GeneratePreviewAsync(result.Path);
+            var preview = await FilePreviewService.GeneratePreviewAsync(result.Path, token);
 
             // La sélection a changé pendant la génération (fichier volumineux, disque lent) :
             // publier maintenant afficherait la preview d'un item qui n'est plus sélectionné.
@@ -320,6 +359,41 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         }
     }
     
+    /// <summary>
+    /// Répercute dans l'index un renommage ou une suppression faits depuis le launcher, de
+    /// manière incrémentale (ancien chemin retiré, nouveau chemin — fichier ou dossier — indexé).
+    /// Remplace l'ancienne réindexation complète, qui effaçait l'usage de tous les éléments.
+    /// </summary>
+    public void ApplyLocalFileChange(string? oldPath, string? newPath)
+    {
+        var now = DateTime.UtcNow;
+        var changes = new List<FileChangeEvent>();
+        if (!string.IsNullOrEmpty(oldPath)) changes.Add(new FileChangeEvent(FileChangeType.Deleted, oldPath, now));
+        if (!string.IsNullOrEmpty(newPath)) changes.Add(new FileChangeEvent(FileChangeType.Created, newPath, now));
+        if (changes.Count == 0) return;
+
+        var uiScheduler = TaskScheduler.FromCurrentSynchronizationContext();
+        _ = Task.Run(() => _indexingService.ProcessFileChanges(changes)).ContinueWith(_ =>
+        {
+            if (!string.IsNullOrWhiteSpace(SearchText))
+                UpdateResults();
+        }, uiScheduler);
+    }
+
+    private static void RunOnUi(Action action)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.CheckAccess())
+            action();
+        else
+            dispatcher.InvokeAsync(action);
+    }
+
+    partial void OnIsIndexingChanged(bool value)
+    {
+        ShowIndexingIndicator = value && _settings.Appearance.ShowIndexingStatus;
+    }
+
     private void UpdateResults()
     {
         // Appel direct sans debouncing (utilisé pour les rafraîchissements forcés)
@@ -356,12 +430,15 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         
         // === Commandes asynchrones spécialisées ===
         // Le CommandRouter dispatche vers le bon handler (météo, traduction, IA, recherche système).
-        var handler = _search.FindCommandHandler(queryLower);
+        // Le préfixe est reconnu sans tenir compte de la casse, mais le handler reçoit le texte
+        // ORIGINAL : noms propres, acronymes et fragments de code arrivent intacts à l'IA et à
+        // la traduction (ils recevaient auparavant une version en minuscules).
+        var handler = _search.FindCommandHandler(query);
         if (handler != null)
         {
             // Les commandes async gèrent leur propre cycle Results.Clear → affichage
             Results.Clear();
-            _ = DispatchCommandAsync(handler, queryLower, generation, token);
+            _ = DispatchCommandAsync(handler, query, generation, token);
             return;
         }
         
@@ -571,19 +648,25 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
+            // L'erreur d'une requête périmée ne doit pas écraser l'affichage courant
+            if (token.IsCancellationRequested || generation != _searchGeneration) return;
+
             Results.Clear();
             Results.Add(new SearchResult
             {
                 Name = "Erreur",
                 Description = ex.Message,
                 Type = ResultType.SystemControl,
-                DisplayIcon = "⚠️"
+                DisplayIcon = "⚠️",
+                IsInfoBlock = true
             });
             FinalizeResults();
         }
         finally
         {
-            IsSearching = false;
+            // Seule la requête courante pilote l'indicateur de chargement
+            if (generation == _searchGeneration)
+                IsSearching = false;
         }
     }
     
@@ -633,8 +716,16 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         if (SelectedIndex < 0 || SelectedIndex >= Results.Count)
             return;
 
-        var item = Results[SelectedIndex];
+        await ActivateAsync(Results[SelectedIndex]);
+    }
 
+    /// <summary>
+    /// Sémantique d'activation UNIQUE d'un résultat : touche Entrée, clic et action « Ouvrir »
+    /// passent tous ici, si bien qu'une app Store, un calcul ou une commande interne se
+    /// comportent de la même façon quel que soit le chemin emprunté.
+    /// </summary>
+    private async Task ActivateAsync(SearchResult item)
+    {
         switch (item.Type)
         {
             case ResultType.SystemCommand:
@@ -682,9 +773,9 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Enregistre un alias via le ResultActionService.
     /// </summary>
-    public void SaveAlias(string alias, string targetPath)
+    public void SaveAlias(string alias, string targetPath, ResultType? targetType = null)
     {
-        var notification = _actions.SaveAlias(alias, targetPath);
+        var notification = _actions.SaveAlias(alias, targetPath, targetType);
         ShowNotification?.Invoke(this, notification);
     }
     
@@ -739,6 +830,14 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     /// </summary>
     private void ApplyActionOutcome(ActionOutcome outcome, SearchResult result)
     {
+        // « Ouvrir » : même chemin que la touche Entrée
+        if (outcome.ActivateRequest)
+        {
+            ShowActionsPanel = false;
+            _ = ActivateAsync(result);
+            return;
+        }
+
         // Demandes de dialogues UI (la View écoute ces events)
         if (outcome.RenameRequestPath != null)
         {
@@ -788,9 +887,22 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         if (outcome.CloseActionsPanel)
             ShowActionsPanel = false;
         
-        // Masquer le launcher
+        // Masquer le launcher (les actions qui masquent sont des lancements : l'option
+        // « Fermer après lancement » s'applique)
         if (outcome.ShouldHide)
+            HideAfterLaunch();
+    }
+
+    /// <summary>
+    /// Après un lancement réussi : masquer le launcher, sauf si l'option « Fermer après
+    /// lancement » est désactivée — la fenêtre reste alors ouverte pour enchaîner.
+    /// </summary>
+    private void HideAfterLaunch()
+    {
+        if (_settings.CloseAfterLaunch)
             RequestHide?.Invoke(this, EventArgs.Empty);
+        else
+            RequestKeepOpenAfterLaunch?.Invoke(this, EventArgs.Empty);
     }
     
     /// <summary>
@@ -811,7 +923,7 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
             }
 
             _indexingService.RecordUsage(result);
-            RequestHide?.Invoke(this, EventArgs.Empty);
+            HideAfterLaunch();
         }
     }
     
@@ -824,7 +936,7 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         ShowPreviewPanel = !ShowPreviewPanel;
         _settingsProvider.Update(s => s.Appearance.ShowPreviewPanel = ShowPreviewPanel);
         
-        if (ShowPreviewPanel && SelectedIndex >= 0 && SelectedIndex < Results.Count)
+        if (IsPreviewHostAttached && ShowPreviewPanel && SelectedIndex >= 0 && SelectedIndex < Results.Count)
         {
             CancelPendingPreview();
             _previewCts = new CancellationTokenSource();
@@ -873,7 +985,7 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         }
 
         _indexingService.RecordUsage(item);
-        RequestHide?.Invoke(this, EventArgs.Empty);
+        HideAfterLaunch();
     }
     
 
@@ -1026,6 +1138,7 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     public void ReloadSettings()
     {
         _settingsProvider.Reload();
+        ShowIndexingIndicator = IsIndexing && _settings.Appearance.ShowIndexingStatus;
         ShowCategoryBadges = _settings.Appearance.ShowCategoryBadges;
         ShowSettingsButton = _settings.Appearance.ShowSettingsButton;
         ShowShortcutHints = _settings.Appearance.ShowShortcutHints;
@@ -1033,6 +1146,7 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     
     public void Reset()
     {
+        InvalidatePendingSearch();
         SearchText = string.Empty;
         GhostSuggestionText = string.Empty;
         Results.Clear();

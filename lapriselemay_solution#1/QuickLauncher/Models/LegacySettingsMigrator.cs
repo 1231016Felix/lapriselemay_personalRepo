@@ -71,7 +71,17 @@ internal static class LegacySettingsMigrator
         settings.Integrations.TranslateSourceLang = legacy.TranslateSourceLang ?? "auto";
         settings.Integrations.AiProvider = legacy.AiProvider ?? "chatgpt";
         settings.Integrations.AiApiUrl = legacy.AiApiUrl ?? "https://api.openai.com/v1/chat/completions";
-        settings.Integrations.AiApiKeyDecrypted = legacy.AiApiKey ?? string.Empty;
+        try
+        {
+            settings.Integrations.AiApiKeyDecrypted = legacy.AiApiKey ?? string.Empty;
+        }
+        catch (System.Security.Cryptography.CryptographicException ex)
+        {
+            // DPAPI indisponible : conserver la valeur legacy telle quelle (déjà en clair dans
+            // l'ancien fichier) plutôt que de perdre l'ensemble des réglages migrés.
+            settings.Integrations.AiApiKey = legacy.AiApiKey ?? string.Empty;
+            Services.Log.Warning($"[Settings] Clé API non chiffrée pendant la migration : {ex.Message}");
+        }
         settings.Integrations.AiModel = legacy.AiModel ?? "gpt-4o-mini";
         settings.Integrations.AiSystemPrompt = legacy.AiSystemPrompt ?? settings.Integrations.AiSystemPrompt;
         settings.Integrations.NoteWidgets = legacy.NoteWidgets ?? [];

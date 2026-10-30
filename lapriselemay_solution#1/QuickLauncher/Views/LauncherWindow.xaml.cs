@@ -11,6 +11,9 @@ using QuickLauncher.ViewModels;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using Clipboard = System.Windows.Clipboard;
 using MessageBox = System.Windows.MessageBox;
+// .NET 10 réintroduit System.Windows.Forms.ContextMenu/MenuItem (compatibilité) : lever l'ambiguïté.
+using ContextMenu = System.Windows.Controls.ContextMenu;
+using MenuItem = System.Windows.Controls.MenuItem;
 
 namespace QuickLauncher.Views;
 
@@ -31,6 +34,10 @@ public partial class LauncherWindow : Window
     
     // Flag pour empêcher le HideWindow pendant l'affichage d'un dialogue modal
     private bool _isDialogOpen;
+
+    // « Fermer après lancement » désactivé : la perte de focus causée par le lancement
+    // (l'application lancée passe au premier plan) ne doit pas masquer le launcher.
+    private DateTime _ignoreDeactivationUntil = DateTime.MinValue;
     
     /// <summary>
     /// Accès rapide aux paramètres actuels (toujours à jour via ISettingsProvider).
@@ -63,6 +70,11 @@ public partial class LauncherWindow : Window
     private void SetupEventHandlers()
     {
         _viewModel.RequestHide += (_, _) => HideWindow();
+        _viewModel.RequestKeepOpenAfterLaunch += (_, _) =>
+        {
+            _ignoreDeactivationUntil = DateTime.UtcNow.AddSeconds(2);
+            SearchBox.SelectAll(); // la prochaine frappe remplace la requête précédente
+        };
         _viewModel.RequestOpenSettings += (_, _) =>
         {
             // Le ViewModel appelle RequestHide juste avant → forcer immédiat pour éviter
@@ -128,7 +140,11 @@ public partial class LauncherWindow : Window
                 var success = _fileActionsService.Rename(path, dialog.NewName);
                 if (success)
                 {
-                    RequestReindex?.Invoke(this, EventArgs.Empty);
+                    // Mise à jour incrémentale (ancien chemin retiré, nouveau indexé, sous-arbre
+                    // compris) au lieu d'une réindexation complète : plus rapide, et l'usage des
+                    // autres éléments n'est plus effacé. Les événements du watcher sont idempotents.
+                    var newPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path) ?? string.Empty, dialog.NewName);
+                    _viewModel.ApplyLocalFileChange(path, newPath);
                 }
                 else
                 {
@@ -143,7 +159,7 @@ public partial class LauncherWindow : Window
         }
     }
     
-    private void OnRequestCreateAlias(object? sender, (string Name, string Path) args)
+    private void OnRequestCreateAlias(object? sender, (string Name, string Path, ResultType Type) args)
     {
         _isDialogOpen = true;
         try
@@ -152,7 +168,8 @@ public partial class LauncherWindow : Window
             
             if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.Alias))
             {
-                _viewModel.SaveAlias(dialog.Alias, args.Path);
+                // Le type d'origine est mémorisé : l'alias sera lancé comme l'élément lui-même
+                _viewModel.SaveAlias(dialog.Alias, args.Path, args.Type);
             }
         }
         finally
@@ -536,7 +553,22 @@ public partial class LauncherWindow : Window
                     _viewModel.ExecuteShortcutAction(FileActionType.OpenInTerminal);
                     e.Handled = true;
                     return;
+
+                case Key.O:
+                    // Ouvrir l'emplacement (raccourci annoncé dans le panneau d'actions)
+                    _viewModel.ExecuteShortcutAction(FileActionType.OpenLocation);
+                    e.Handled = true;
+                    return;
             }
+        }
+
+        // Ctrl+Maj+C : copier le chemin (raccourci annoncé dans le panneau d'actions ;
+        // Ctrl+C reste réservé à la copie du texte de la recherche)
+        if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.C)
+        {
+            _viewModel.ExecuteShortcutAction(FileActionType.CopyPath);
+            e.Handled = true;
+            return;
         }
         
         // Ctrl+Enter: Exécuter en admin
@@ -555,7 +587,11 @@ public partial class LauncherWindow : Window
             return;
         }
         
-        // Raccourcis sans modificateurs
+        // Raccourcis SANS modificateur : Maj+Suppr, Ctrl+Suppr, Ctrl+Flèche… restent au champ
+        // de recherche. Tab garde son rôle même avec Maj, pour ne pas faire sortir le focus.
+        if (Keyboard.Modifiers != ModifierKeys.None && e.Key != Key.Tab)
+            return;
+
         switch (e.Key)
         {
             case Key.Tab:
@@ -611,7 +647,11 @@ public partial class LauncherWindow : Window
                 break;
                 
             case Key.Delete:
-                // Supprimer (délégué au ViewModel → ResultActionService)
+                // Dans la zone de recherche, Suppr efface un caractère (touche d'édition).
+                // Il ne supprime le résultat sélectionné que si la LISTE a le focus ; la
+                // suppression reste aussi disponible dans le panneau d'actions (Tab).
+                if (SearchBox.IsKeyboardFocusWithin)
+                    break;
                 _viewModel.ExecuteShortcutAction(FileActionType.Delete);
                 e.Handled = true;
                 break;
@@ -627,14 +667,16 @@ public partial class LauncherWindow : Window
                 $"Voulez-vous vraiment supprimer '{item.Name}' ?\n\nLe fichier sera envoyé à la corbeille.",
                 "Confirmer la suppression",
                 MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
+                MessageBoxImage.Warning,
+                // « Non » par défaut : une frappe réflexe sur Entrée ne doit rien supprimer.
+                MessageBoxResult.No);
             
             if (result == MessageBoxResult.Yes)
             {
                 var success = _fileActionsService.DeleteToRecycleBin(item.Path);
                 if (success)
                 {
-                    RequestReindex?.Invoke(this, EventArgs.Empty);
+                    _viewModel.ApplyLocalFileChange(item.Path, null);
                     HideWindow();
                 }
                 else
@@ -654,6 +696,9 @@ public partial class LauncherWindow : Window
     {
         // Pendant un hide animé ou un dialogue modal, on ignore
         if (_animator.IsAnimatingHide || _isDialogOpen) return;
+
+        // Lancement avec « Fermer après lancement » désactivé : rester ouvert
+        if (DateTime.UtcNow < _ignoreDeactivationUntil) return;
         
         // Ne pas masquer quand le menu contextuel est ouvert
         // (AllowsTransparency + WindowStyle=None fait que le popup du ContextMenu
@@ -784,37 +829,42 @@ public partial class LauncherWindow : Window
     
     private void CenterOnScreen()
     {
-        var workArea = SystemParameters.WorkArea; // Zone sans la barre des tâches
+        // Tous les écrans (zones de travail en DIP, DPI propre à chacun) : SystemParameters.WorkArea
+        // ne décrit que l'écran principal et faisait rejeter une position sur un écran secondaire.
+        IReadOnlyList<Rect> workAreas;
+        try { workAreas = MonitorHelper.GetWorkAreas(); }
+        catch { workAreas = []; }
+        if (workAreas.Count == 0)
+            workAreas = [SystemParameters.WorkArea];
+
         var windowWidth = Width;
         var windowHeight = ActualHeight > 0 ? ActualHeight : 150;
         // Marge de sécurité en bas pour ne jamais coller à la barre des tâches
         const double bottomMargin = 10;
-        
-        if (_settings.Appearance.LastWindowLeft.HasValue && _settings.Appearance.LastWindowTop.HasValue)
+
+        Rect workArea;
+        if (_settings.Appearance.LastWindowLeft is { } left
+            && _settings.Appearance.LastWindowTop is { } top
+            && MonitorHelper.FitsInAnyWorkArea(left, top, windowWidth, windowHeight, workAreas))
         {
-            var left = _settings.Appearance.LastWindowLeft.Value;
-            var top = _settings.Appearance.LastWindowTop.Value;
-            
-            if (left >= workArea.Left && left + windowWidth <= workArea.Right &&
-                top >= workArea.Top && top + windowHeight <= workArea.Bottom)
-            {
-                Left = left;
-                Top = top;
-            }
-            else
-            {
-                // Position sauvegardée hors écran (changement de moniteur, etc.) → centrer
-                Left = workArea.Left + (workArea.Width - windowWidth) / 2;
-                Top = workArea.Top + workArea.Height / 4;
-            }
+            // Position sauvegardée toujours visible sur l'un des écrans (coordonnées négatives comprises)
+            Left = left;
+            Top = top;
+            workArea = MonitorHelper.FindWorkAreaContaining(left, top, workAreas) ?? workAreas[0];
         }
         else
         {
-            // Première ouverture, aucune position sauvegardée → centrer
+            // Première ouverture ou écran débranché : centrer sur l'écran où se trouve le
+            // pointeur de la souris plutôt que toujours sur l'écran principal
+            Rect? underCursor = null;
+            try { underCursor = MonitorHelper.GetWorkAreaUnderCursor(); }
+            catch { /* repli sur l'écran principal */ }
+
+            workArea = underCursor ?? SystemParameters.WorkArea;
             Left = workArea.Left + (workArea.Width - windowWidth) / 2;
             Top = workArea.Top + workArea.Height / 4;
         }
-        
+
         // Limiter MaxHeight dynamiquement pour ne jamais dépasser la zone de travail.
         // La fenêtre utilise SizeToContent=Height, donc WPF la redimensionne automatiquement
         // en respectant MaxHeight. Le Grid.Margin="20" ajoute 40px (ombre).
@@ -1095,7 +1145,14 @@ public partial class LauncherWindow : Window
         var isPinned = _settings.Search.IsPinned(result.Path);
         var hasAlias = _viewModel.HasAlias(result.Path);
         var actions = _fileActionProvider.GetActionsForResult(result, isPinned, hasAlias);
-        
+
+        // Bloc informatif (réponse IA, météo, « Chargement… ») : aucune action, pas de menu vide
+        if (actions.Count == 0)
+        {
+            contextMenu.IsOpen = false;
+            return;
+        }
+
         // Créer le style pour les items
         var menuItemStyle = (Style)FindResource("ThemedMenuItemStyle");
         

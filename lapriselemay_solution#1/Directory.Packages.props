@@ -10,10 +10,12 @@
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     
     <!-- Injection de dépendances -->
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="9.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.14" />
     
-    <!-- Base de données -->
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <!-- Base de données.
+         10.0.14 tire SQLitePCLRaw 2.1.13 : les versions ≤ 2.1.11 embarquaient un SQLite
+         < 3.50.2 (CVE-2025-6965 / GHSA-2m69-gcr7-jv3q). Un test vérifie la version chargée. -->
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.14" />
     
     <!-- System Tray -->
     <PackageVersion Include="H.NotifyIcon.Wpf" Version="2.2.0" />
@@ -22,10 +24,7 @@
     <PackageVersion Include="NAudio" Version="2.2.1" />
     
     <!-- OleDb (Windows Search API) -->
-    <PackageVersion Include="System.Data.OleDb" Version="9.0.0" />
-    
-    <!-- DPAPI - Chiffrement des données sensibles (clés API) -->
-    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="9.0.2" />
+    <PackageVersion Include="System.Data.OleDb" Version="10.0.14" />
     
     <!-- Installateur + mises à jour automatiques -->
     <PackageVersion Include="Velopack" Version="1.2.0" />

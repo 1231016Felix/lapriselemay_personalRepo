@@ -33,6 +33,9 @@ public partial class App : Application
     /// </summary>
     public static ServiceProvider Services { get; private set; } = null!;
 
+    /// <summary>Garde d'instance unique, détenu pendant toute la vie du processus.</summary>
+    private static SingleInstanceGuard? _singleInstance;
+
     /// <summary>
     /// Point d'entrée explicite (remplace le Main auto-généré par WPF).
     /// Velopack doit s'exécuter en tout premier : lors d'une installation ou d'une
@@ -45,6 +48,14 @@ public partial class App : Application
         VelopackApp.Build()
             .OnFirstRun(_ => UpdateService.OnFirstRun())
             .Run();
+
+        // Instance unique : un deuxième lancement réveille l'instance existante puis se termine.
+        // Le délai de grâce couvre les redémarrages (mise à jour, « Redémarrer »), pendant
+        // lesquels l'ancienne instance est encore en train de se fermer.
+        using var singleInstance = SingleInstanceGuard.TryAcquire(TimeSpan.FromSeconds(5));
+        if (singleInstance == null)
+            return;
+        _singleInstance = singleInstance;
 
         var app = new App();
         app.InitializeComponent();
@@ -85,17 +96,6 @@ public partial class App : Application
             _logger.Info("Synchronisation registre démarrage...");
             SettingsWindow.SyncStartupRegistry();
             
-            var indexingService = Services.GetRequiredService<IndexingService>();
-            
-            _logger.Info("Démarrage indexation intelligente...");
-            var fileWatcherService = Services.GetRequiredService<FileWatcherService>();
-            _ = indexingService.SmartStartIndexingAsync().ContinueWith(_ =>
-            {
-                // Démarrer le FileWatcher après l'indexation, même si elle a échoué
-                try { fileWatcherService.Start(); }
-                catch (Exception ex) { _logger.Warning($"Erreur démarrage FileWatcher: {ex.Message}"); }
-            }, TaskScheduler.FromCurrentSynchronizationContext());
-            
             _logger.Info("Restauration des widgets de notes et minuteries...");
             var noteWidgetService = Services.GetRequiredService<NoteWidgetService>();
             noteWidgetService.RestoreWidgets();
@@ -112,7 +112,27 @@ public partial class App : Application
             
             if (!_hotkeyService.Register())
                 _logger.Warning($"Impossible d'enregistrer le raccourci {settings.Hotkey.DisplayText}");
-            
+
+            // Indexation APRÈS l'icône système et le raccourci : le launcher est utilisable
+            // immédiatement avec l'index existant. Task.Run sort aussi du thread UI la
+            // comparaison des empreintes, qui parcourt tous les dossiers indexés.
+            _logger.Info("Démarrage indexation intelligente (arrière-plan)...");
+            var indexingService = Services.GetRequiredService<IndexingService>();
+            var fileWatcherService = Services.GetRequiredService<FileWatcherService>();
+            var uiScheduler = TaskScheduler.FromCurrentSynchronizationContext();
+            _ = Task.Run(() => indexingService.SmartStartIndexingAsync()).ContinueWith(t =>
+            {
+                if (t.IsFaulted)
+                    _logger.Error("Erreur indexation au démarrage", t.Exception?.GetBaseException());
+
+                // Démarrer le FileWatcher après l'indexation, même si elle a échoué
+                try { fileWatcherService.Start(); }
+                catch (Exception ex) { _logger.Warning($"Erreur démarrage FileWatcher: {ex.Message}"); }
+            }, uiScheduler);
+
+            // Un deuxième lancement de l'application affiche le launcher de cette instance
+            _singleInstance?.ListenForShowRequests(() => Dispatcher.InvokeAsync(ShowLauncher));
+
             _logger.Info("Configuration réindexation auto...");
             SetupAutoReindex();
             
@@ -121,6 +141,11 @@ public partial class App : Application
             // Construire la fenêtre du launcher dès que le dispatcher est libre,
             // pour que le premier appui sur le raccourci n'ait plus à la payer.
             _ = Dispatcher.InvokeAsync(PrewarmLauncherWindow, DispatcherPriority.ApplicationIdle);
+
+            // Option « Démarrer minimisé » désactivée : afficher le launcher dès le démarrage
+            // (sinon l'application démarre discrètement dans la zone de notification).
+            if (!settings.MinimizeOnStartup)
+                _ = Dispatcher.InvokeAsync(ShowLauncher, DispatcherPriority.ApplicationIdle);
             
             // Vérification des mises à jour en arrière-plan (non bloquante).
             // Volontairement après "Démarrage terminé" : un repo injoignable ou

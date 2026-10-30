@@ -23,7 +23,7 @@ public sealed class WeatherCommandHandler : ICommandHandler
         var settings = _settingsProvider.Current;
         var cmd = settings.SystemCommands.FirstOrDefault(c => c.Type == SystemControlType.Weather);
         if (cmd is not { IsEnabled: true }) return false;
-        return query.StartsWith(cmd.FullPrefix);
+        return query.StartsWith(cmd.FullPrefix, StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<CommandResult> ExecuteAsync(string query, CancellationToken token)

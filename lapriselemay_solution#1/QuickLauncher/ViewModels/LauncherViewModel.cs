@@ -152,6 +152,11 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
             GhostSuggestionText = string.Empty;
         }
         
+        // Invalider IMMÉDIATEMENT la recherche en vol et sa génération : pendant le debounce
+        // (jusqu'à 4 s pour l'IA), une ancienne réponse ne doit plus pouvoir remplacer
+        // l'affichage de la nouvelle saisie. Seul le démarrage du prochain travail est différé.
+        InvalidatePendingSearch();
+
         // Annuler le debounce précédent et en démarrer un nouveau.
         // Dispose après Cancel : la tâche en vol ne fait que catcher l'OCE et lire
         // IsCancellationRequested, deux opérations sûres sur une source disposée.
@@ -161,6 +166,18 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         _ = DebounceSearchAsync(value, _debounceCts.Token);
     }
     
+    /// <summary>
+    /// Rend caduques la recherche ou la commande asynchrone en cours : annulation de leur
+    /// jeton et nouvelle génération. Leurs résultats, erreurs et indicateurs de chargement
+    /// seront ignorés s'ils arrivent plus tard.
+    /// </summary>
+    private void InvalidatePendingSearch()
+    {
+        _searchCts?.Cancel();
+        Interlocked.Increment(ref _searchGeneration);
+        IsSearching = false;
+    }
+
     /// <summary>
     /// Debounce async : attend un court délai avant de lancer la recherche.
     /// Utilise un délai allongé pour les commandes IA afin de laisser
@@ -406,12 +423,15 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         
         // === Commandes asynchrones spécialisées ===
         // Le CommandRouter dispatche vers le bon handler (météo, traduction, IA, recherche système).
-        var handler = _search.FindCommandHandler(queryLower);
+        // Le préfixe est reconnu sans tenir compte de la casse, mais le handler reçoit le texte
+        // ORIGINAL : noms propres, acronymes et fragments de code arrivent intacts à l'IA et à
+        // la traduction (ils recevaient auparavant une version en minuscules).
+        var handler = _search.FindCommandHandler(query);
         if (handler != null)
         {
             // Les commandes async gèrent leur propre cycle Results.Clear → affichage
             Results.Clear();
-            _ = DispatchCommandAsync(handler, queryLower, generation, token);
+            _ = DispatchCommandAsync(handler, query, generation, token);
             return;
         }
         
@@ -621,19 +641,25 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
+            // L'erreur d'une requête périmée ne doit pas écraser l'affichage courant
+            if (token.IsCancellationRequested || generation != _searchGeneration) return;
+
             Results.Clear();
             Results.Add(new SearchResult
             {
                 Name = "Erreur",
                 Description = ex.Message,
                 Type = ResultType.SystemControl,
-                DisplayIcon = "⚠️"
+                DisplayIcon = "⚠️",
+                IsInfoBlock = true
             });
             FinalizeResults();
         }
         finally
         {
-            IsSearching = false;
+            // Seule la requête courante pilote l'indicateur de chargement
+            if (generation == _searchGeneration)
+                IsSearching = false;
         }
     }
     
@@ -1113,6 +1139,7 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     
     public void Reset()
     {
+        InvalidatePendingSearch();
         SearchText = string.Empty;
         GhostSuggestionText = string.Empty;
         Results.Clear();

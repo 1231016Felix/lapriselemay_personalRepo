@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Net.Http;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using QuickLauncher.Services.AiProviders;
 
@@ -50,6 +52,22 @@ public sealed class AiChatService : IDisposable
     }
 
     /// <summary>
+    /// Clé de cache structurée : question EXACTE (casse comprise), fournisseur, endpoint,
+    /// modèle, consigne système et compte. Changer de serveur, de modèle ou de consigne ne
+    /// peut plus renvoyer l'ancienne réponse. La clé API n'y figure jamais en clair : seule
+    /// une empreinte SHA-256 tronquée distingue deux comptes.
+    /// </summary>
+    internal static string BuildCacheKey(string question, string apiUrl, string apiKey,
+        string model, string systemPrompt, string providerId)
+    {
+        var account = string.IsNullOrEmpty(apiKey)
+            ? "-"
+            : Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(apiKey)))[..16];
+        return string.Join('\u001F',
+            providerId, apiUrl.Trim(), model.Trim(), systemPrompt, account, question.Trim());
+    }
+
+    /// <summary>
     /// Envoie une question à l'API et retourne la réponse.
     /// </summary>
     public async Task<AiChatResult?> AskAsync(
@@ -65,7 +83,7 @@ public sealed class AiChatService : IDisposable
             return null;
 
         // Vérifier le cache (verrouillé : AskAsync peut être appelé en parallèle)
-        var cacheKey = $"{question.ToLowerInvariant()}_{model}_{providerId}";
+        var cacheKey = BuildCacheKey(question, apiUrl, apiKey, model, systemPrompt, providerId);
         lock (_cacheLock)
         {
             if (_cache.TryGetValue(cacheKey, out var cached) &&

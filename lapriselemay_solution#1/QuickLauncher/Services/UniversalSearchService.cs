@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Enumeration;
 using System.Runtime.InteropServices;
 using QuickLauncher.Models;
 
@@ -21,6 +22,16 @@ public class UniversalSearchService : IUniversalSearchService
         "AppData\\Local\\Temp", "Windows\\Temp", "$Recycle.Bin",
         "Windows\\WinSxS", "Windows\\assembly", ".nuget", "packages"
     ];
+
+    /// <summary>Exclusions découpées en segments (« AppData\Local\Temp » → 3 segments).</summary>
+    private static readonly string[][] ExcludedFolderSegments =
+        ExcludedFolders.Select(e => e.Split('\\', StringSplitOptions.RemoveEmptyEntries)).ToArray();
+
+    /// <summary>
+    /// Plafond de dossiers visités par une recherche directe : sans lui, une arborescence
+    /// géante sans correspondance pouvait être parcourue longtemps sans rien produire.
+    /// </summary>
+    private const int MaxDirectoriesPerSearch = 20_000;
 
     private readonly ConcurrentDictionary<string, CachedSearchResult> _searchCache = new();
     private readonly TimeSpan _cacheExpiration = TimeSpan.FromSeconds(60);
@@ -321,84 +332,123 @@ public class UniversalSearchService : IUniversalSearchService
         var searchPaths = string.IsNullOrEmpty(searchScope)
             ? _defaultSearchPaths.Where(Directory.Exists).ToArray()
             : [searchScope];
-        var options = new EnumerationOptions
+        var pattern = $"*{query}*";
+
+        // Énumération d'UN niveau à la fois : le parcours est piloté ici, ce qui permet de
+        // filtrer les dossiers exclus AVANT d'y descendre (node_modules, .git, bin, obj…),
+        // de consulter le jeton à chaque dossier et d'appliquer un plafond global.
+        var oneLevel = new EnumerationOptions
         {
             IgnoreInaccessible = true,
-            RecurseSubdirectories = true,
-            MaxRecursionDepth = MaxSearchDepth,
+            RecurseSubdirectories = false,
             AttributesToSkip = FileAttributes.System
         };
 
         await Task.Run(() =>
         {
+            var visited = 0;
+
             foreach (var basePath in searchPaths)
             {
-                if (cancellationToken.IsCancellationRequested) break;
                 if (!Directory.Exists(basePath)) continue;
 
-                try
+                var pending = new Stack<(string Directory, int Depth)>();
+                pending.Push((basePath, 0));
+
+                while (pending.Count > 0)
                 {
-                    var files = Directory.EnumerateFiles(basePath, $"*{query}*", options);
-                    foreach (var file in files)
+                    if (cancellationToken.IsCancellationRequested
+                        || results.Count >= MaxResultsLimit
+                        || visited >= MaxDirectoriesPerSearch)
+                        return;
+
+                    var (directory, depth) = pending.Pop();
+                    visited++;
+
+                    try
                     {
-                        if (cancellationToken.IsCancellationRequested) break;
-                        if (results.Count >= MaxResultsLimit) break;
-                        if (ShouldExclude(file)) continue;
-
-                        try
+                        foreach (var file in Directory.EnumerateFiles(directory, pattern, oneLevel))
                         {
-                            var info = new FileInfo(file);
-                            results.Add(new SearchResult                            {
-                                Name = Path.GetFileNameWithoutExtension(file),
-                                Path = file,
-                                Description = BuildDescription(file, info.Length, info.LastWriteTime),
-                                Type = DetermineResultType(file, false),
-                                Score = 400
-                            });
-                        }
-                        catch { /* Ignorer les fichiers inaccessibles */ }
-                    }
+                            if (cancellationToken.IsCancellationRequested || results.Count >= MaxResultsLimit)
+                                return;
 
-                    var folders = Directory.EnumerateDirectories(basePath, $"*{query}*", options);
-                    foreach (var folder in folders)
-                    {
-                        if (cancellationToken.IsCancellationRequested) break;
-                        if (results.Count >= MaxResultsLimit) break;
-                        if (ShouldExclude(folder)) continue;
-
-                        try
-                        {
-                            var dirInfo = new DirectoryInfo(folder);
-                            results.Add(new SearchResult
+                            try
                             {
-                                Name = dirInfo.Name,
-                                Path = folder,
-                                Description = folder,
-                                Type = ResultType.Folder,
-                                Score = 400
-                            });
+                                var info = new FileInfo(file);
+                                results.Add(new SearchResult
+                                {
+                                    Name = Path.GetFileNameWithoutExtension(file),
+                                    Path = file,
+                                    Description = BuildDescription(file, info.Length, info.LastWriteTime),
+                                    Type = DetermineResultType(file, false),
+                                    Score = 400
+                                });
+                            }
+                            catch { /* Ignorer les fichiers inaccessibles */ }
                         }
-                        catch { /* Ignorer les dossiers inaccessibles */ }
+
+                        foreach (var subDirectory in Directory.EnumerateDirectories(directory, "*", oneLevel))
+                        {
+                            if (cancellationToken.IsCancellationRequested) return;
+
+                            // Filtrer AVANT de descendre. Les jonctions héritées du profil
+                            // (« Application Data »…) portent l'attribut Système et sont déjà
+                            // écartées par AttributesToSkip ; les dossiers OneDrive (points
+                            // d'analyse « cloud ») doivent en revanche rester parcourables.
+                            if (IsExcludedDirectory(subDirectory))
+                                continue;
+
+                            var name = Path.GetFileName(subDirectory);
+                            if (results.Count < MaxResultsLimit
+                                && FileSystemName.MatchesSimpleExpression(pattern, name, ignoreCase: true))
+                            {
+                                results.Add(new SearchResult
+                                {
+                                    Name = name,
+                                    Path = subDirectory,
+                                    Description = subDirectory,
+                                    Type = ResultType.Folder,
+                                    Score = 400
+                                });
+                            }
+
+                            if (depth + 1 <= MaxSearchDepth)
+                                pending.Push((subDirectory, depth + 1));
+                        }
                     }
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[DirectSearch] Error in {basePath}: {ex.Message}");
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[DirectSearch] Error in {directory}: {ex.Message}");
+                    }
                 }
             }
         }, cancellationToken);
 
         return results.Take(MaxResultsLimit).ToList();
     }
-    private static bool ShouldExclude(string path)
+
+    /// <summary>
+    /// Dossier exclu de la recherche directe : comparaison par SEGMENT complet (« bin »,
+    /// « obj »…) et par suite de segments pour les exclusions composées (« AppData\Local\Temp »).
+    /// L'ancienne recherche de sous-chaîne excluait « C:\Users\Robin\… » (« bin »),
+    /// « ObjectModel » ou « Objectifs 2026 » (« obj »).
+    /// </summary>
+    internal static bool IsExcludedDirectory(string directoryPath)
     {
-        foreach (var excluded in ExcludedFolders)
+        var segments = directoryPath.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
+        foreach (var sequence in ExcludedFolderSegments)
         {
-            if (path.Contains(excluded, StringComparison.OrdinalIgnoreCase))
-                return true;
+            for (var i = 0; i + sequence.Length <= segments.Length; i++)
+            {
+                var match = true;
+                for (var j = 0; j < sequence.Length && match; j++)
+                    match = segments[i + j].Equals(sequence[j], StringComparison.OrdinalIgnoreCase);
+                if (match) return true;
+            }
         }
         return false;
     }
+
 
     #endregion
 

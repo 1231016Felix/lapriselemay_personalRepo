@@ -22,7 +22,8 @@ public sealed class CommandRouter
     /// <summary>
     /// Tente de router la requête vers un handler spécialisé.
     /// </summary>
-    /// <param name="query">Requête brute de l'utilisateur (en minuscules, trimmée).</param>
+    /// <param name="query">Requête de l'utilisateur, trimmée, casse ORIGINALE conservée
+    /// (les handlers reconnaissent leur préfixe sans tenir compte de la casse).</param>
     /// <returns>Le handler approprié, ou null si la requête n'est pas une commande spéciale.</returns>
     public ICommandHandler? FindHandler(string query)
     {

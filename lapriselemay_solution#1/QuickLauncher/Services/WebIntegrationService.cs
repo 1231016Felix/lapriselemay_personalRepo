@@ -252,11 +252,11 @@ public sealed class WebIntegrationService : IDisposable
 
         try
         {
-            // MyMemory utilise le format "source|target" pour le paramètre langpair
-            // Si auto-détection, on choisit une source par défaut inverse de la cible
-            var effectiveSource = sourceLang == "auto" 
-                ? (targetLang == "en" ? "fr" : "en") 
-                : sourceLang;
+            // MyMemory utilise le format "source|target" pour le paramètre langpair.
+            // En mode auto, « Autodetect » fait détecter la langue par le service : l'ancienne
+            // paire supposée (fr|en ou en|fr) traduisait de l'espagnol comme du français.
+            var isAuto = string.Equals(sourceLang, "auto", StringComparison.OrdinalIgnoreCase);
+            var effectiveSource = isAuto ? "Autodetect" : sourceLang;
             var langPair = $"{effectiveSource}|{targetLang}";
             
             var url = $"https://api.mymemory.translated.net/get?" +
@@ -271,16 +271,17 @@ public sealed class WebIntegrationService : IDisposable
             var matchQuality = responseData.TryGetProperty("match", out var match) 
                 ? match.GetDouble() : 0;
 
-            // Détecter la langue source si auto
-            var detectedLang = effectiveSource;
-            if (sourceLang == "auto" && data.RootElement.TryGetProperty("matches", out var matches)
+            // Langue source détectée (mode auto) : champ detectedLanguage de la réponse,
+            // à défaut la source de la correspondance exacte dans « matches »
+            var detectedLang = isAuto ? ReadDetectedLanguage(responseData) ?? "auto" : sourceLang;
+            if (isAuto && detectedLang == "auto" && data.RootElement.TryGetProperty("matches", out var matches)
                 && matches.ValueKind == JsonValueKind.Array)
             {
                 foreach (var m in matches.EnumerateArray())
                 {
                     if (m.TryGetProperty("segment", out var seg) && 
                         seg.GetString()?.Equals(text, StringComparison.OrdinalIgnoreCase) == true &&
-                        m.TryGetProperty("source", out var src))
+                        m.TryGetProperty("source", out var src) && src.ValueKind == JsonValueKind.String)
                     {
                         detectedLang = src.GetString() ?? "auto";
                         break;
@@ -319,6 +320,27 @@ public sealed class WebIntegrationService : IDisposable
             Debug.WriteLine($"[Translate] Erreur: {ex.Message}");
             return new TranslationResult { Error = $"Erreur: {ex.Message}" };
         }
+    }
+
+    /// <summary>
+    /// Lit la langue détectée par MyMemory (« es », « es-ES » ou objet { language }) et la
+    /// ramène à un code de deux lettres ; null si absente.
+    /// </summary>
+    internal static string? ReadDetectedLanguage(JsonElement responseData)
+    {
+        if (!responseData.TryGetProperty("detectedLanguage", out var detected))
+            return null;
+
+        var raw = detected.ValueKind switch
+        {
+            JsonValueKind.String => detected.GetString(),
+            JsonValueKind.Object when detected.TryGetProperty("language", out var lang) => lang.GetString(),
+            _ => null
+        };
+
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var code = raw.Split('-', '_')[0].Trim().ToLowerInvariant();
+        return code.Length is >= 2 and <= 3 ? code : null;
     }
 
     /// <summary>

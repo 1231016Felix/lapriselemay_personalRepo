@@ -11,6 +11,9 @@ using QuickLauncher.ViewModels;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using Clipboard = System.Windows.Clipboard;
 using MessageBox = System.Windows.MessageBox;
+// .NET 10 réintroduit System.Windows.Forms.ContextMenu/MenuItem (compatibilité) : lever l'ambiguïté.
+using ContextMenu = System.Windows.Controls.ContextMenu;
+using MenuItem = System.Windows.Controls.MenuItem;
 
 namespace QuickLauncher.Views;
 

@@ -2,9 +2,9 @@
 
   <PropertyGroup>
     <!-- Même TFM que le projet testé : QuickLauncher est une application WPF
-         ciblant net9.0-windows10.0.19041.0, une ProjectReference impose donc
+         ciblant net10.0-windows10.0.19041.0, une ProjectReference impose donc
          un framework cible compatible. -->
-    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <WindowsSdkPackageVersion>10.0.19041.41</WindowsSdkPackageVersion>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>

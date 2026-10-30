@@ -194,16 +194,37 @@ public static class FilePreviewService
     /// <summary>
     /// Génère une prévisualisation pour un fichier ou dossier.
     /// </summary>
-    public static async Task<FilePreview?> GeneratePreviewAsync(string path)
+    /// <returns>L'aperçu, ou <c>null</c> (élément absent, erreur ou opération annulée).
+    /// Ne lève jamais d'exception.</returns>
+    public static async Task<FilePreview?> GeneratePreviewAsync(string path, CancellationToken token = default)
     {
         try
         {
+            // Tout le travail (E/S comprises) hors du thread appelant, avec annulation effective
+            return await Task.Run(() => GeneratePreviewCoreAsync(path, token), token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+    }
+
+    private static async Task<FilePreview?> GeneratePreviewCoreAsync(string path, CancellationToken token)
+    {
+        try
+        {
+            token.ThrowIfCancellationRequested();
+
             if (Directory.Exists(path))
-                return await GenerateFolderPreviewAsync(path);
-            
+                return GenerateFolderPreview(path, token);
+
             if (File.Exists(path))
-                return await GenerateFilePreviewAsync(path);
-            
+                return await GenerateFilePreviewAsync(path, token).ConfigureAwait(false);
+
+            return null;
+        }
+        catch (OperationCanceledException)
+        {
             return null;
         }
         catch (Exception ex)
@@ -213,28 +234,48 @@ public static class FilePreviewService
         }
     }
 
-    private static async Task<FilePreview> GenerateFolderPreviewAsync(string path)
+    /// <summary>Nombre maximal d'entrées comptées pour l'aperçu d'un dossier.</summary>
+    private const int MaxFolderEntriesCounted = 1000;
+
+    private static FilePreview GenerateFolderPreview(string path, CancellationToken token)
     {
         var dirInfo = new DirectoryInfo(path);
-        
-        // Compter les éléments du dossier
+
+        // Compter les éléments du dossier, avec un plafond (dossiers énormes, réseau)
         var fileCount = 0;
         var folderCount = 0;
         long totalSize = 0;
-        
+        var truncated = false;
+
         try
         {
-            foreach (var file in dirInfo.EnumerateFiles())
+            foreach (var entry in dirInfo.EnumerateFileSystemInfos())
             {
-                fileCount++;
-                totalSize += file.Length;
+                token.ThrowIfCancellationRequested();
+                if (fileCount + folderCount >= MaxFolderEntriesCounted)
+                {
+                    truncated = true;
+                    break;
+                }
+
+                if (entry is FileInfo file)
+                {
+                    fileCount++;
+                    totalSize += file.Length;
+                }
+                else
+                {
+                    folderCount++;
+                }
             }
-            folderCount = dirInfo.EnumerateDirectories().Count();
         }
+        catch (OperationCanceledException) { throw; }
         catch { /* Ignorer les erreurs d'accès */ }
-        
-        var content = $"{fileCount} fichier(s), {folderCount} dossier(s)";
-        
+
+        var content = truncated
+            ? $"Plus de {MaxFolderEntriesCounted} éléments"
+            : $"{fileCount} fichier(s), {folderCount} dossier(s)";
+
         return new FilePreview
         {
             FileName = dirInfo.Name,
@@ -250,9 +291,21 @@ public static class FilePreviewService
         };
     }
 
-    private static async Task<FilePreview> GenerateFilePreviewAsync(string path)
+    /// <summary>
+    /// Fichier « disponible en ligne uniquement » (OneDrive et autres fournisseurs cloud) :
+    /// lire son contenu déclencherait son téléchargement juste pour un aperçu.
+    /// </summary>
+    private static bool IsCloudOnly(FileAttributes attributes)
+    {
+        const FileAttributes recallOnOpen = (FileAttributes)0x00040000;
+        const FileAttributes recallOnDataAccess = (FileAttributes)0x00400000;
+        return (attributes & (FileAttributes.Offline | recallOnOpen | recallOnDataAccess)) != 0;
+    }
+
+    private static async Task<FilePreview> GenerateFilePreviewAsync(string path, CancellationToken token)
     {
         var fileInfo = new FileInfo(path);
+        var cloudOnly = IsCloudOnly(fileInfo.Attributes);
         var ext = fileInfo.Extension.ToLowerInvariant();
         var previewType = DeterminePreviewType(ext);
         
@@ -267,13 +320,14 @@ public static class FilePreviewService
 
         switch (previewType)
         {
-            case FilePreviewType.Text:
-                (textContent, totalLines, previewLines, isTruncated) = await ReadTextPreviewAsync(path);
+            case FilePreviewType.Text when !cloudOnly:
+                (textContent, totalLines, previewLines, isTruncated) = await ReadTextPreviewAsync(path, token).ConfigureAwait(false);
                 LanguageNames.TryGetValue(ext, out language);
                 break;
-                
-            case FilePreviewType.Image:
-                (imagePreview, imageWidth, imageHeight) = await LoadImagePreviewAsync(path);
+
+            case FilePreviewType.Image when !cloudOnly:
+                token.ThrowIfCancellationRequested();
+                (imagePreview, imageWidth, imageHeight) = await LoadImagePreviewAsync(path).ConfigureAwait(false);
                 break;
         }
 
@@ -328,43 +382,53 @@ public static class FilePreviewService
         return FilePreviewType.None;
     }
 
-    private static async Task<(string? Content, int TotalLines, int PreviewLines, bool IsTruncated)> ReadTextPreviewAsync(string path)
+    /// <summary>
+    /// Lecture BORNÉE : au plus <see cref="MaxTextPreviewChars"/> caractères et
+    /// <see cref="MaxTextPreviewLines"/> lignes, une ligne géante étant tronquée. Le fichier
+    /// n'est plus relu en entier pour compter ses lignes : le total n'est connu (TotalLines)
+    /// que si l'aperçu couvre tout le fichier.
+    /// </summary>
+    private static async Task<(string? Content, int TotalLines, int PreviewLines, bool IsTruncated)> ReadTextPreviewAsync(string path, CancellationToken token)
     {
         try
         {
-            // Compter le nombre total de lignes d'abord
-            var totalLines = 0;
-            using (var countReader = new StreamReader(path))
+            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete, bufferSize: 4096, useAsync: true);
+            using var reader = new StreamReader(stream, detectEncodingFromByteOrderMarks: true);
+
+            var buffer = new char[MaxTextPreviewChars + 1];
+            var read = 0;
+            var endOfFile = false;
+            while (read < buffer.Length)
             {
-                while (await countReader.ReadLineAsync() != null)
-                    totalLines++;
-            }
-            
-            // Lire les premières lignes pour la prévisualisation
-            using var reader = new StreamReader(path);
-            var lines = new List<string>();
-            var totalChars = 0;
-            
-            while (!reader.EndOfStream && lines.Count < MaxTextPreviewLines && totalChars < MaxTextPreviewChars)
-            {
-                var line = await reader.ReadLineAsync();
-                if (line != null)
+                var count = await reader.ReadAsync(buffer.AsMemory(read), token).ConfigureAwait(false);
+                if (count == 0)
                 {
-                    // Ajouter le numéro de ligne pour les fichiers de code
-                    var lineNum = lines.Count + 1;
-                    var formattedLine = $"{lineNum,4} │ {line}";
-                    lines.Add(formattedLine);
-                    totalChars += line.Length;
+                    endOfFile = true;
+                    break;
                 }
+                read += count;
             }
-            
-            var isTruncated = !reader.EndOfStream || lines.Count < totalLines;
-            var content = string.Join(Environment.NewLine, lines);
-            
+
+            var text = new string(buffer, 0, Math.Min(read, MaxTextPreviewChars));
+            var lines = text.Split('\n');
+            if (endOfFile && lines.Length > 1 && lines[^1].Length == 0)
+                lines = lines[..^1]; // saut de ligne final
+
+            var shown = new List<string>();
+            foreach (var line in lines.Take(MaxTextPreviewLines))
+                shown.Add($"{shown.Count + 1,4} │ {line.TrimEnd('\r')}");
+
+            var isTruncated = !endOfFile || read > MaxTextPreviewChars || lines.Length > MaxTextPreviewLines;
+            var content = string.Join(Environment.NewLine, shown);
             if (isTruncated)
-                content += Environment.NewLine + $"      ⋮ ({totalLines - lines.Count} lignes de plus...)";
-            
-            return (content, totalLines, lines.Count, isTruncated);
+                content += Environment.NewLine + "      ⋮ (aperçu tronqué)";
+
+            return (content, isTruncated ? 0 : shown.Count, shown.Count, isTruncated);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch
         {

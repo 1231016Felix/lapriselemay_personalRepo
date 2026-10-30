@@ -20,17 +20,21 @@ public interface ICalculatorService
 /// Amélioration #7 : support de :
 ///   - Opérateurs : + - * / ^ %
 ///   - Parenthèses : ( )
-///   - Fonctions : sqrt, sin, cos, tan, log, ln, abs, ceil, floor, round
+///   - Fonctions : sqrt, sin, cos, tan, log, ln, exp, abs, ceil, floor, round
 ///   - Constantes : pi, e
 ///   - Nombres décimaux avec . ou ,
 /// 
 /// Grammaire (précédence croissante) :
 ///   expr   → term (('+' | '-') term)*
-///   term   → power (('*' | '/' | '%') power)*
-///   power  → unary ('^' unary)*     (associativité droite)
-///   unary  → ('-' | '+') unary | call
+///   term   → unary (('*' | '/' | '%') unary)*
+///   unary  → ('-' | '+') unary | power
+///   power  → call ('^' unary)?      (associativité droite ; exposant signé : 2^-2)
 ///   call   → IDENT '(' expr ')' | primary
 ///   primary→ NUMBER | '(' expr ')'
+///
+/// Conventions annoncées :
+///   - le signe unaire lie MOINS fort que la puissance : -2^2 = -(2^2) = -4, (-2)^2 = 4 ;
+///   - toute parenthèse ouverte doit être fermée : « sqrt(9 » et « (2+3 » sont refusées.
 /// 
 /// Converti de static vers injectable (Amélioration #2).
 /// </summary>
@@ -90,8 +94,12 @@ public sealed partial class CalculatorService : ICalculatorService
         return value.ToString("G10", CultureInfo.InvariantCulture);
     }
 
-    private static readonly string[] KnownFunctions =
-        ["sqrt", "sin", "cos", "tan", "log", "ln", "abs", "ceil", "floor", "round"];
+    /// <summary>
+    /// Fonctions reconnues par le pré-filtre de <see cref="TryCalculate"/>. Doit rester aligné
+    /// sur le switch de <c>ParseCall</c> (un test le vérifie) : « exp » y manquait.
+    /// </summary>
+    internal static readonly string[] KnownFunctions =
+        ["sqrt", "sin", "cos", "tan", "log", "ln", "exp", "abs", "ceil", "floor", "round"];
 
     /// <summary>
     /// Parser récursif descendant pour expressions mathématiques.
@@ -124,14 +132,14 @@ public sealed partial class CalculatorService : ICalculatorService
 
         private double ParseTerm()
         {
-            var left = ParsePower();
+            var left = ParseUnary();
 
             while (Position < Input.Length)
             {
                 var ch = Input[Position];
-                if (ch == '*') { Position++; left *= ParsePower(); }
-                else if (ch == '/') { Position++; left /= ParsePower(); }
-                else if (ch == '%') { Position++; left %= ParsePower(); }
+                if (ch == '*') { Position++; left *= ParseUnary(); }
+                else if (ch == '/') { Position++; left /= ParseUnary(); }
+                else if (ch == '%') { Position++; left %= ParseUnary(); }
                 else break;
             }
 
@@ -140,13 +148,13 @@ public sealed partial class CalculatorService : ICalculatorService
 
         private double ParsePower()
         {
-            var baseVal = ParseUnary();
+            var baseVal = ParseCall();
 
             if (Position < Input.Length && Input[Position] == '^')
             {
                 Position++;
-                // Associativité droite : 2^3^2 = 2^(3^2) = 512
-                var exp = ParsePower();
+                // Associativité droite : 2^3^2 = 2^(3^2) = 512 ; exposant signé : 2^-2 = 0.25
+                var exp = ParseUnary();
                 return Math.Pow(baseVal, exp);
             }
 
@@ -155,13 +163,15 @@ public sealed partial class CalculatorService : ICalculatorService
 
         private double ParseUnary()
         {
+            // Le signe unaire lie MOINS fort que la puissance : -2^2 = -(2^2) = -4,
+            // comme en mathématiques. Pour élever un nombre négatif : (-2)^2 = 4.
             if (Position < Input.Length)
             {
                 if (Input[Position] == '-') { Position++; return -ParseUnary(); }
                 if (Input[Position] == '+') { Position++; return ParseUnary(); }
             }
 
-            return ParseCall();
+            return ParsePower();
         }
 
         private double ParseCall()
@@ -185,9 +195,7 @@ public sealed partial class CalculatorService : ICalculatorService
                 {
                     Position++; // skip '('
                     var arg = ParseExpression();
-
-                    if (Position < Input.Length && Input[Position] == ')')
-                        Position++; // skip ')'
+                    ExpectClosingParenthesis();
 
                     return name switch
                     {
@@ -219,15 +227,21 @@ public sealed partial class CalculatorService : ICalculatorService
             {
                 Position++; // skip '('
                 var value = ParseExpression();
-
-                if (Position < Input.Length && Input[Position] == ')')
-                    Position++; // skip ')'
+                ExpectClosingParenthesis();
 
                 return value;
             }
 
             // Nombre
             return ParseNumber();
+        }
+
+        /// <summary>Une parenthèse ouverte doit être fermée : « sqrt(9 » n'est pas une expression valide.</summary>
+        private void ExpectClosingParenthesis()
+        {
+            if (Position >= Input.Length || Input[Position] != ')')
+                throw new FormatException($"Parenthèse fermante manquante à la position {Position}");
+            Position++;
         }
 
         private double ParseNumber()

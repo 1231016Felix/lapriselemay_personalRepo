@@ -87,6 +87,13 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _showShortcutHints;
     
+    /// <summary>
+    /// Une vue affiche-t-elle réellement le panneau de prévisualisation ? Tant que ce n'est pas
+    /// le cas (LauncherWindow n'a pas de panneau), aucun aperçu n'est calculé : chaque flèche
+    /// ↓ relisait sinon un fichier ou énumérait un dossier pour un résultat jamais affiché.
+    /// </summary>
+    public bool IsPreviewHostAttached { get; set; }
+
     public BatchObservableCollection<SearchResult> Results { get; } = [];
     public ObservableCollection<FileAction> AvailableActions { get; } = [];
     
@@ -267,7 +274,7 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
 
         if (index >= 0 && index < Results.Count)
         {
-            if (_settings.Appearance.ShowPreviewPanel)
+            if (IsPreviewHostAttached && _settings.Appearance.ShowPreviewPanel)
             {
                 _previewCts = new CancellationTokenSource();
                 _ = UpdatePreviewAsync(Results[index], _previewCts.Token);
@@ -309,7 +316,7 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
                 return;
             }
             
-            var preview = await FilePreviewService.GeneratePreviewAsync(result.Path);
+            var preview = await FilePreviewService.GeneratePreviewAsync(result.Path, token);
 
             // La sélection a changé pendant la génération (fichier volumineux, disque lent) :
             // publier maintenant afficherait la preview d'un item qui n'est plus sélectionné.
@@ -929,7 +936,7 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         ShowPreviewPanel = !ShowPreviewPanel;
         _settingsProvider.Update(s => s.Appearance.ShowPreviewPanel = ShowPreviewPanel);
         
-        if (ShowPreviewPanel && SelectedIndex >= 0 && SelectedIndex < Results.Count)
+        if (IsPreviewHostAttached && ShowPreviewPanel && SelectedIndex >= 0 && SelectedIndex < Results.Count)
         {
             CancelPendingPreview();
             _previewCts = new CancellationTokenSource();

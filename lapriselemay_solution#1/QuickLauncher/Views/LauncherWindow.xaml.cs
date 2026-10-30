@@ -826,37 +826,42 @@ public partial class LauncherWindow : Window
     
     private void CenterOnScreen()
     {
-        var workArea = SystemParameters.WorkArea; // Zone sans la barre des tâches
+        // Tous les écrans (zones de travail en DIP, DPI propre à chacun) : SystemParameters.WorkArea
+        // ne décrit que l'écran principal et faisait rejeter une position sur un écran secondaire.
+        IReadOnlyList<Rect> workAreas;
+        try { workAreas = MonitorHelper.GetWorkAreas(); }
+        catch { workAreas = []; }
+        if (workAreas.Count == 0)
+            workAreas = [SystemParameters.WorkArea];
+
         var windowWidth = Width;
         var windowHeight = ActualHeight > 0 ? ActualHeight : 150;
         // Marge de sécurité en bas pour ne jamais coller à la barre des tâches
         const double bottomMargin = 10;
-        
-        if (_settings.Appearance.LastWindowLeft.HasValue && _settings.Appearance.LastWindowTop.HasValue)
+
+        Rect workArea;
+        if (_settings.Appearance.LastWindowLeft is { } left
+            && _settings.Appearance.LastWindowTop is { } top
+            && MonitorHelper.FitsInAnyWorkArea(left, top, windowWidth, windowHeight, workAreas))
         {
-            var left = _settings.Appearance.LastWindowLeft.Value;
-            var top = _settings.Appearance.LastWindowTop.Value;
-            
-            if (left >= workArea.Left && left + windowWidth <= workArea.Right &&
-                top >= workArea.Top && top + windowHeight <= workArea.Bottom)
-            {
-                Left = left;
-                Top = top;
-            }
-            else
-            {
-                // Position sauvegardée hors écran (changement de moniteur, etc.) → centrer
-                Left = workArea.Left + (workArea.Width - windowWidth) / 2;
-                Top = workArea.Top + workArea.Height / 4;
-            }
+            // Position sauvegardée toujours visible sur l'un des écrans (coordonnées négatives comprises)
+            Left = left;
+            Top = top;
+            workArea = MonitorHelper.FindWorkAreaContaining(left, top, workAreas) ?? workAreas[0];
         }
         else
         {
-            // Première ouverture, aucune position sauvegardée → centrer
+            // Première ouverture ou écran débranché : centrer sur l'écran où se trouve le
+            // pointeur de la souris plutôt que toujours sur l'écran principal
+            Rect? underCursor = null;
+            try { underCursor = MonitorHelper.GetWorkAreaUnderCursor(); }
+            catch { /* repli sur l'écran principal */ }
+
+            workArea = underCursor ?? SystemParameters.WorkArea;
             Left = workArea.Left + (workArea.Width - windowWidth) / 2;
             Top = workArea.Top + workArea.Height / 4;
         }
-        
+
         // Limiter MaxHeight dynamiquement pour ne jamais dépasser la zone de travail.
         // La fenêtre utilise SizeToContent=Height, donc WPF la redimensionne automatiquement
         // en respectant MaxHeight. Le Grid.Margin="20" ajoute 40px (ombre).

@@ -16,6 +16,7 @@ public partial class TimerWidget : Window
     private readonly Action<int>? _onClose;
     private readonly Action<int>? _onCompleted;
     private readonly Action<int, double, double>? _onPositionChanged;
+    private readonly Action<int, bool, TimeSpan>? _onPauseChanged;
     private readonly DispatcherTimer _updateTimer;
     
     private DateTime _endsAt;
@@ -26,7 +27,7 @@ public partial class TimerWidget : Window
     public int TimerId => _timerId;
     public string Label { get; }
     
-    public TimerWidget(int timerId, string label, TimeSpan duration, Action<int>? onClose = null, Action<int>? onCompleted = null, Action<int, double, double>? onPositionChanged = null)
+    public TimerWidget(int timerId, string label, TimeSpan duration, Action<int>? onClose = null, Action<int>? onCompleted = null, Action<int, double, double>? onPositionChanged = null, Action<int, bool, TimeSpan>? onPauseChanged = null)
     {
         InitializeComponent();
         
@@ -35,9 +36,11 @@ public partial class TimerWidget : Window
         _onClose = onClose;
         _onCompleted = onCompleted;
         _onPositionChanged = onPositionChanged;
+        _onPauseChanged = onPauseChanged;
         Label = label;
-        
-        _endsAt = DateTime.Now + duration;
+
+        // Horloge UTC : insensible aux changements d'heure (DST)
+        _endsAt = DateTime.UtcNow + duration;
         
         LabelText.Text = string.IsNullOrEmpty(label) ? "⏱️ Timer" : $"⏱️ {label}";
         
@@ -72,7 +75,7 @@ public partial class TimerWidget : Window
         }
         else
         {
-            remaining = _endsAt - DateTime.Now;
+            remaining = _endsAt - DateTime.UtcNow;
         }
         
         if (remaining <= TimeSpan.Zero)
@@ -165,20 +168,23 @@ public partial class TimerWidget : Window
         if (_isPaused)
         {
             // Reprendre
-            _endsAt = DateTime.Now + _pausedRemaining;
+            _endsAt = DateTime.UtcNow + _pausedRemaining;
             _isPaused = false;
             PauseButton.Content = "⏸";
             PauseButton.ToolTip = "Pause";
             _updateTimer.Start();
+            _onPauseChanged?.Invoke(_timerId, false, _pausedRemaining);
         }
         else
         {
             // Pause
-            _pausedRemaining = _endsAt - DateTime.Now;
+            _pausedRemaining = _endsAt - DateTime.UtcNow;
             _isPaused = true;
             PauseButton.Content = "▶";
             PauseButton.ToolTip = "Reprendre";
             _updateTimer.Stop();
+            // Persister la pause : au redémarrage, la minuterie revient en pause avec ce temps
+            _onPauseChanged?.Invoke(_timerId, true, _pausedRemaining);
         }
     }
     
@@ -201,8 +207,27 @@ public partial class TimerWidget : Window
     /// </summary>
     public void RestoreWithRemaining(TimeSpan remaining)
     {
-        _endsAt = DateTime.Now + remaining;
+        _endsAt = DateTime.UtcNow + remaining;
         UpdateDisplay(null, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Restaure l'état persisté : temps restant et, le cas échéant, la pause.
+    /// </summary>
+    public void RestoreState(TimeSpan remaining, bool isPaused)
+    {
+        if (!isPaused)
+        {
+            RestoreWithRemaining(remaining);
+            return;
+        }
+
+        _pausedRemaining = remaining;
+        _isPaused = true;
+        PauseButton.Content = "▶";
+        PauseButton.ToolTip = "Reprendre";
+        UpdateDisplay(null, EventArgs.Empty);
+        _updateTimer.Stop();
     }
     
     protected override void OnClosed(EventArgs e)

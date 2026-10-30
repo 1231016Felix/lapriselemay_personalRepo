@@ -329,17 +329,30 @@ public class BookmarkService : IBookmarkService
                 if (!File.Exists(placesDb))
                     continue;
                 
-                // Firefox verrouille le fichier, on doit le copier
-                var tempDb = Path.Combine(Path.GetTempPath(), $"firefox_bookmarks_{Guid.NewGuid()}.sqlite");
-                
+                // Firefox verrouille places.sqlite : on lit une COPIE. Elle doit inclure le journal
+                // WAL, sinon les favoris récents encore dans places.sqlite-wal (pas encore
+                // « checkpointés ») manquent tant que Firefox est ouvert.
+                var tempDir = Path.Combine(Path.GetTempPath(), $"ql_firefox_{Guid.NewGuid():N}");
+                var tempDb = Path.Combine(tempDir, "places.sqlite");
+
                 try
                 {
+                    Directory.CreateDirectory(tempDir);
                     File.Copy(placesDb, tempDb, overwrite: true);
+
+                    var walFile = placesDb + "-wal";
+                    if (File.Exists(walFile))
+                        File.Copy(walFile, tempDb + "-wal", overwrite: true);
+
                     results.AddRange(ReadFirefoxDatabase(tempDb));
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"[Bookmarks] Lecture du profil Firefox '{Path.GetFileName(profile)}' impossible : {ex.Message}");
                 }
                 finally
                 {
-                    try { File.Delete(tempDb); } catch { }
+                    try { Directory.Delete(tempDir, recursive: true); } catch { }
                 }
             }
         }
@@ -357,7 +370,10 @@ public class BookmarkService : IBookmarkService
         
         try
         {
-            using var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={dbPath};Mode=ReadOnly");
+            // Copie privée : ouverture en écriture pour que SQLite rejoue le WAL copié avec elle.
+            // Pooling=False : sans cela le pool garde le fichier ouvert et la copie temporaire
+            // ne peut pas être supprimée.
+            using var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={dbPath};Mode=ReadWrite;Pooling=False");
             conn.Open();
             
             using var cmd = conn.CreateCommand();

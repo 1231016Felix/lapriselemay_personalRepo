@@ -42,7 +42,7 @@ L'exécutable n'est **pas dans le code source** : il est publié dans les [**Rel
 
 ### Prérequis
 - Windows 10/11
-- Aucun runtime à installer : l'application est publiée en *self-contained*. (Le SDK .NET 9.0 n'est requis que pour compiler depuis les sources.)
+- Aucun runtime à installer : l'application est publiée en *self-contained*. (Le SDK .NET 10 — 10.0.100 ou plus récent, cf. `global.json` — n'est requis que pour compiler depuis les sources.)
 
 ### Compiler depuis les sources (alternative)
 ```
@@ -100,20 +100,30 @@ Appuyez sur **`Alt + Espace`** (raccourci par défaut) pour faire apparaître la
 ### Raccourci global
 | Raccourci | Action |
 |-----------|--------|
-| `Alt + Espace` | Ouvrir/Fermer QuickLauncher (configurable) |
+| `Alt + Espace` | Afficher QuickLauncher (configurable). Relancer l'application affiche aussi la fenêtre de l'instance déjà ouverte : une seule instance tourne à la fois. |
 
 ### Dans la fenêtre de recherche
 
 | Raccourci | Action |
 |-----------|--------|
-| `Entrée` | Lancer l'élément sélectionné |
+| `Entrée` | Lancer l'élément sélectionné (l'action « Ouvrir » fait exactement la même chose) |
 | `↑` / `↓` | Naviguer dans les résultats |
-| `Tab` | Sélection suivante |
-| `Shift + Tab` | Sélection précédente |
+| `Tab` | Accepter la suggestion fantôme ; sans suggestion, ouvrir les actions de l'élément |
+| `→` (curseur en fin de texte) | Accepter la suggestion fantôme |
+| `Alt + 1` … `Alt + 9` | Lancer le 1er … 9e résultat |
+| `Ctrl + Entrée` | Exécuter en administrateur |
+| `Ctrl + Maj + Entrée` | Ouvrir en navigation privée (favoris) |
+| `Ctrl + O` | Ouvrir l'emplacement |
+| `Ctrl + Maj + C` | Copier le chemin |
+| `Ctrl + T` | Ouvrir un terminal dans le dossier |
+| `F2` | Renommer |
+| `Suppr` | Dans la zone de recherche : effacer un caractère. Quand la **liste** des résultats a le focus : envoyer l'élément à la corbeille (confirmation, « Non » par défaut) |
 | `Échap` | Fermer la fenêtre |
 | `Ctrl + ,` | Ouvrir les paramètres |
-| `Ctrl + R` | Réindexer les fichiers |
+| `Ctrl + R` | Réindexer les fichiers (l'usage appris est conservé) |
 | `Ctrl + Q` | Quitter l'application |
+
+> Les raccourcis sans modificateur ne s'appliquent que sans `Ctrl`/`Maj`/`Alt` : `Ctrl + Suppr` ou `Maj + Flèche` restent des touches d'édition du champ de recherche.
 
 ### Personnaliser le raccourci global
 Vous pouvez modifier le raccourci global dans **Paramètres → Raccourcis**. Options disponibles :
@@ -289,14 +299,13 @@ Plusieurs méthodes pour ouvrir les paramètres :
 | Option | Description |
 |--------|-------------|
 | Démarrer avec Windows | Lance QuickLauncher au démarrage de Windows |
-| Démarrer minimisé | Démarre dans la zone de notification |
-| Afficher dans la barre des tâches | Icône visible dans la taskbar |
+| Démarrer minimisé | Coché : démarre discrètement dans la zone de notification. Décoché : la fenêtre de recherche s'ouvre au démarrage |
 
 #### Comportement
 | Option | Description |
 |--------|-------------|
-| Fermer après lancement | Masque la fenêtre après avoir lancé un élément |
-| Afficher le statut d'indexation | Montre la progression de l'indexation |
+| Fermer après lancement | Coché : masque la fenêtre après un lancement. Décoché : la fenêtre reste ouverte pour enchaîner (`Échap` pour la fermer) |
+| Afficher le statut d'indexation | Affiche l'indicateur « Indexation… » pendant une indexation |
 | Afficher le bouton ⚙️ | Bouton paramètres dans la barre de recherche |
 
 #### Position de la fenêtre
@@ -399,7 +408,9 @@ Modifiez la liste en séparant les extensions par des virgules.
 | Indexer les dossiers cachés | Inclut les dossiers masqués |
 
 #### Réindexer
-Cliquez sur **Réindexer** pour reconstruire l'index complet. Utile après avoir ajouté de nouveaux dossiers ou fichiers.
+Cliquez sur **Réindexer** pour rescanner tous les dossiers. Utile après avoir ajouté de nouveaux dossiers ou fichiers. L'usage appris (fréquence et récence d'ouverture) est conservé ; seuls les éléments disparus sont retirés.
+
+Les renommages, déplacements et suppressions faits dans l'Explorateur (ou depuis QuickLauncher) sont suivis en direct, y compris pour un dossier entier : son contenu est retrouvé sous son nouveau nom.
 
 ---
 
@@ -477,9 +488,11 @@ Cliquez et maintenez n'importe où sur la fenêtre (hors champ de texte et liste
 ### Emplacement des fichiers de données
 ```
 %APPDATA%\QuickLauncher\
-├── settings.json    # Configuration
+├── settings.json    # Configuration (écriture atomique)
+├── aliases.json     # Alias (écriture atomique)
+├── aliases.json.bak # Version précédente des alias, relue si aliases.json est illisible
 ├── index.db         # Base de données d'index
-└── app.log          # Journal d'erreurs
+└── app.log          # Journal d'erreurs (dont les échecs de sauvegarde)
 ```
 
 ---
@@ -488,13 +501,29 @@ Cliquez et maintenez n'importe où sur la fenêtre (hors champ de texte et liste
 
 | Contexte | Raccourci | Action |
 |----------|-----------|--------|
-| Global | `Alt + Espace` | Ouvrir QuickLauncher |
+| Global | `Alt + Espace` | Afficher QuickLauncher |
 | Recherche | `Entrée` | Lancer |
 | Recherche | `↑` / `↓` | Naviguer |
+| Recherche | `Tab` | Suggestion / actions |
+| Recherche | `Ctrl + Entrée` | Exécuter en admin |
+| Recherche | `Ctrl + O` | Ouvrir l'emplacement |
+| Recherche | `Ctrl + Maj + C` | Copier le chemin |
+| Recherche | `F2` | Renommer |
+| Liste | `Suppr` | Envoyer à la corbeille |
 | Recherche | `Échap` | Fermer |
 | Recherche | `Ctrl + ,` | Paramètres |
 | Recherche | `Ctrl + R` | Réindexer |
 | Recherche | `Ctrl + Q` | Quitter |
+
+---
+
+## Alias
+
+Un alias est un mot court qui lance un élément : `Tab` sur un résultat → **Créer un alias**.
+
+- Un alias créé depuis un résultat se lance **exactement comme cet élément** (raccourci, application du Store, dossier, favori…).
+- Les alias textuels (alias par défaut, ou ajoutés dans `aliases.json`) acceptent un fichier ou un dossier — espaces, accents et `&` compris —, une adresse (`ms-settings:`, `https://…`) ou un programme suivi d'arguments (`code C:\projet`, `"C:\Program Files\App\app.exe" --option`). Ils ne passent jamais par l'invite de commandes.
+- Pour une vraie commande shell (tube, redirection…), préfixez la cible par `>` : `>ipconfig /all | clip`.
 
 ---
 

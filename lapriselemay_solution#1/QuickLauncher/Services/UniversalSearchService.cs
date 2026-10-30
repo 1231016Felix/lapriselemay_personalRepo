@@ -90,9 +90,10 @@ public class UniversalSearchService : IUniversalSearchService
     }
 
     /// <summary>
-    /// Déduplique les résultats de recherche par nom normalisé.
+    /// Déduplique les résultats de recherche par identité réelle.
     /// Pour les raccourcis .lnk, on résout la cible pour éviter d'afficher
     /// le même programme plusieurs fois (ex: Ollama.lnk dans Start Menu, StartUp, Programs\Ollama).
+    /// Les fichiers homonymes de dossiers différents ne sont jamais fusionnés.
     /// Conserve le résultat ayant le meilleur score, puis le plus récent.
     /// </summary>
     private List<SearchResult> DeduplicateResults(List<SearchResult> results)
@@ -112,9 +113,9 @@ public class UniversalSearchService : IUniversalSearchService
 
     /// <summary>
     /// Génère une clé de déduplication pour un résultat.
-    /// Pour les .lnk, on utilise le chemin cible (résolu) afin de regrouper
-    /// les raccourcis pointant vers le même exécutable.
-    /// Pour les autres fichiers, on utilise le nom + extension comme clé.
+    /// Pour les .lnk, on utilise le chemin cible COMPLET (résolu) afin de regrouper
+    /// les raccourcis pointant vers le même exécutable — mais pas deux « setup.exe » différents.
+    /// Pour les autres fichiers, la clé est le chemin complet.
     /// </summary>
     private string GetDeduplicationKey(SearchResult result)
     {
@@ -127,13 +128,15 @@ public class UniversalSearchService : IUniversalSearchService
             {
                 var info = _shortcutHelper.ResolveShortcut(path);
                 if (info != null && !string.IsNullOrEmpty(info.TargetPath))
-                    return Path.GetFileName(info.TargetPath).ToLowerInvariant();
+                    return DeduplicationHelper.NormalizePath(info.TargetPath);
             }
             catch { /* Fallback au nom */ }
         }
 
-        // Pour les fichiers normaux, clé = nom du fichier (avec extension)
-        return Path.GetFileName(path).ToLowerInvariant();
+        // Pour les fichiers normaux, clé = chemin complet : deux « budget.xlsx » de deux
+        // dossiers clients restent deux résultats ; seul un même fichier renvoyé deux fois
+        // (par deux moteurs, par exemple) est fusionné.
+        return DeduplicationHelper.NormalizePath(path);
     }
 
     /// <inheritdoc/>

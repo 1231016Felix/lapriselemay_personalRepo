@@ -128,7 +128,11 @@ public partial class LauncherWindow : Window
                 var success = _fileActionsService.Rename(path, dialog.NewName);
                 if (success)
                 {
-                    RequestReindex?.Invoke(this, EventArgs.Empty);
+                    // Mise à jour incrémentale (ancien chemin retiré, nouveau indexé, sous-arbre
+                    // compris) au lieu d'une réindexation complète : plus rapide, et l'usage des
+                    // autres éléments n'est plus effacé. Les événements du watcher sont idempotents.
+                    var newPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path) ?? string.Empty, dialog.NewName);
+                    _viewModel.ApplyLocalFileChange(path, newPath);
                 }
                 else
                 {
@@ -634,7 +638,7 @@ public partial class LauncherWindow : Window
                 var success = _fileActionsService.DeleteToRecycleBin(item.Path);
                 if (success)
                 {
-                    RequestReindex?.Invoke(this, EventArgs.Empty);
+                    _viewModel.ApplyLocalFileChange(item.Path, null);
                     HideWindow();
                 }
                 else

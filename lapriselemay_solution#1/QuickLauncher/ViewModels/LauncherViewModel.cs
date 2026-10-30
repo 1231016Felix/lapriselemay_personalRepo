@@ -320,6 +320,27 @@ public sealed partial class LauncherViewModel : ObservableObject, IDisposable
         }
     }
     
+    /// <summary>
+    /// Répercute dans l'index un renommage ou une suppression faits depuis le launcher, de
+    /// manière incrémentale (ancien chemin retiré, nouveau chemin — fichier ou dossier — indexé).
+    /// Remplace l'ancienne réindexation complète, qui effaçait l'usage de tous les éléments.
+    /// </summary>
+    public void ApplyLocalFileChange(string? oldPath, string? newPath)
+    {
+        var now = DateTime.UtcNow;
+        var changes = new List<FileChangeEvent>();
+        if (!string.IsNullOrEmpty(oldPath)) changes.Add(new FileChangeEvent(FileChangeType.Deleted, oldPath, now));
+        if (!string.IsNullOrEmpty(newPath)) changes.Add(new FileChangeEvent(FileChangeType.Created, newPath, now));
+        if (changes.Count == 0) return;
+
+        var uiScheduler = TaskScheduler.FromCurrentSynchronizationContext();
+        _ = Task.Run(() => _indexingService.ProcessFileChanges(changes)).ContinueWith(_ =>
+        {
+            if (!string.IsNullOrWhiteSpace(SearchText))
+                UpdateResults();
+        }, uiScheduler);
+    }
+
     private void UpdateResults()
     {
         // Appel direct sans debouncing (utilisé pour les rafraîchissements forcés)

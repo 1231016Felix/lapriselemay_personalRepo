@@ -87,11 +87,12 @@ public sealed class SearchService
         return scored
             .OrderByDescending(x => x.Score)
             .ThenByDescending(x => x.Item.UseCount)
-            // Déduplication : garder le meilleur résultat par (nom normalisé, catégorie de type).
-            // Évite les doublons Application/.lnk + StoreApp + SystemControl pour le même programme.
+            // Déduplication par identité (DeduplicationHelper.GetIdentityKey) : les entrées
+            // d'application (.lnk, AppsFolder, paramètres) sont fusionnées par nom normalisé ;
+            // les fichiers et dossiers par chemin, pour ne jamais masquer un homonyme.
             // Les noms sont normalisés pour ignorer les emojis en tête (ex: "🧹 Nettoyage" = "Nettoyage").
             // Note : on réordonne dans chaque groupe car PLINQ ne garantit pas l'ordre intra-groupe.
-            .GroupBy(x => (Name: NormalizeNameForDedup(x.Item.Name), Category: DeduplicationHelper.GetCategory(x.Item.Type)))
+            .GroupBy(x => DeduplicationHelper.GetIdentityKey(x.Item, NormalizeNameForDedup))
             .Select(g => g
                 .OrderByDescending(x => x.Item.Type is ResultType.SystemControl or ResultType.AppControl ? 1 : 0)
                 .ThenByDescending(x => x.Score)

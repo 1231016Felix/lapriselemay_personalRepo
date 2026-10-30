@@ -85,17 +85,6 @@ public partial class App : Application
             _logger.Info("Synchronisation registre démarrage...");
             SettingsWindow.SyncStartupRegistry();
             
-            var indexingService = Services.GetRequiredService<IndexingService>();
-            
-            _logger.Info("Démarrage indexation intelligente...");
-            var fileWatcherService = Services.GetRequiredService<FileWatcherService>();
-            _ = indexingService.SmartStartIndexingAsync().ContinueWith(_ =>
-            {
-                // Démarrer le FileWatcher après l'indexation, même si elle a échoué
-                try { fileWatcherService.Start(); }
-                catch (Exception ex) { _logger.Warning($"Erreur démarrage FileWatcher: {ex.Message}"); }
-            }, TaskScheduler.FromCurrentSynchronizationContext());
-            
             _logger.Info("Restauration des widgets de notes et minuteries...");
             var noteWidgetService = Services.GetRequiredService<NoteWidgetService>();
             noteWidgetService.RestoreWidgets();
@@ -112,7 +101,24 @@ public partial class App : Application
             
             if (!_hotkeyService.Register())
                 _logger.Warning($"Impossible d'enregistrer le raccourci {settings.Hotkey.DisplayText}");
-            
+
+            // Indexation APRÈS l'icône système et le raccourci : le launcher est utilisable
+            // immédiatement avec l'index existant. Task.Run sort aussi du thread UI la
+            // comparaison des empreintes, qui parcourt tous les dossiers indexés.
+            _logger.Info("Démarrage indexation intelligente (arrière-plan)...");
+            var indexingService = Services.GetRequiredService<IndexingService>();
+            var fileWatcherService = Services.GetRequiredService<FileWatcherService>();
+            var uiScheduler = TaskScheduler.FromCurrentSynchronizationContext();
+            _ = Task.Run(() => indexingService.SmartStartIndexingAsync()).ContinueWith(t =>
+            {
+                if (t.IsFaulted)
+                    _logger.Error("Erreur indexation au démarrage", t.Exception?.GetBaseException());
+
+                // Démarrer le FileWatcher après l'indexation, même si elle a échoué
+                try { fileWatcherService.Start(); }
+                catch (Exception ex) { _logger.Warning($"Erreur démarrage FileWatcher: {ex.Message}"); }
+            }, uiScheduler);
+
             _logger.Info("Configuration réindexation auto...");
             SetupAutoReindex();
             

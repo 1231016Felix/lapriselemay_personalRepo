@@ -158,56 +158,48 @@ public sealed class FileWatcherService : IDisposable
     private void OnWatcherError(object sender, ErrorEventArgs e)
     {
         _logger.Warning($"Erreur FileWatcher: {e.GetException().Message}");
-        
-        // Tenter de redémarrer le watcher
+
+        // Redémarrer le watcher PUIS réconcilier la racine : les événements survenus pendant
+        // le débordement du tampon sont perdus, l'index serait sinon désynchronisé.
         if (sender is FileSystemWatcher watcher)
         {
             var path = watcher.Path;
             RemoveFolder(path);
-            
+
             Task.Delay(5000).ContinueWith(_ =>
             {
-                if (Directory.Exists(path))
-                    AddFolder(path);
+                if (_disposed || !Directory.Exists(path)) return;
+                AddFolder(path);
+                EnqueueChange(FileChangeType.Rescan, path);
             });
         }
     }
 
     private bool ShouldProcess(string path)
     {
-        // Vérifier si c'est un fichier avec une extension indexée
-        var ext = Path.GetExtension(path).ToLowerInvariant();
-        
-        // Ignorer les fichiers système et temporaires
-        if (string.IsNullOrEmpty(ext))
-            return Directory.Exists(path); // C'est un dossier
-        
-        if (ext.StartsWith(".tmp") || ext == ".temp" || path.Contains("~$"))
+        // Un dossier est toujours transmis, quel que soit son nom (« Project.v2 » a une
+        // « extension ») : l'indexeur scanne son contenu avec les règles du scan complet.
+        if (Directory.Exists(path))
+            return true;
+
+        // Ignorer les fichiers temporaires
+        if (IndexRules.IsTemporaryFile(path))
             return false;
-        
-        // Vérifier les extensions autorisées
+
+        // Vérifier les extensions autorisées (profondeur et dossiers cachés : IndexRules, côté indexeur)
+        var ext = Path.GetExtension(path).ToLowerInvariant();
         return _settingsProvider.Current.Search.FileExtensions.Contains(ext);
     }
 
     /// <summary>
-    /// Variante de <see cref="ShouldProcess"/> pour un chemin qui vient d'être
-    /// supprimé (ou renommé) : impossible d'interroger le disque, Directory.Exists
-    /// est toujours faux. Un chemin sans extension est donc traité comme un dossier
-    /// potentiel au lieu d'être ignoré — sinon la suppression d'un dossier indexé
-    /// laissait des entrées fantômes dans l'index jusqu'à la prochaine réindexation.
+    /// Variante de <see cref="ShouldProcess"/> pour un chemin qui vient de disparaître
+    /// (suppression ou ancien nom d'un renommage) : impossible de savoir sur disque si c'était
+    /// un dossier. Tout est donc transmis, sauf les fichiers temporaires, et l'indexeur décide
+    /// d'après son propre contenu : élément connu → retiré ; sinon dossier potentiel → retrait
+    /// de tout ce qui est indexé dessous. L'ancienne heuristique « sans extension = dossier »
+    /// laissait des entrées fantômes pour un dossier nommé « Project.v2 ».
     /// </summary>
-    private bool ShouldProcessDeleted(string path)
-    {
-        var ext = Path.GetExtension(path).ToLowerInvariant();
-
-        if (string.IsNullOrEmpty(ext))
-            return true; // Dossier potentiel
-
-        if (ext.StartsWith(".tmp") || ext == ".temp" || path.Contains("~$"))
-            return false;
-
-        return _settingsProvider.Current.Search.FileExtensions.Contains(ext);
-    }
+    private static bool ShouldProcessDeleted(string path) => !IndexRules.IsTemporaryFile(path);
 
     private void EnqueueChange(FileChangeType type, string path)
     {
@@ -273,7 +265,13 @@ public enum FileChangeType
 {
     Created,
     Deleted,
-    Modified
+    Modified,
+
+    /// <summary>
+    /// La racine indiquée par le chemin doit être réconciliée entièrement : le watcher a
+    /// perdu des événements (débordement du tampon) et a été redémarré.
+    /// </summary>
+    Rescan
 }
 
 /// <summary>

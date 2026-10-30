@@ -23,8 +23,14 @@ namespace QuickLauncher.Views;
 
 public partial class SettingsWindow : Window
 {
-    private readonly AppSettings _settings;
-    private readonly ISettingsProvider? _settingsProvider;
+    /// <summary>
+    /// Toujours le snapshot courant du provider : la fenêtre ne garde aucune copie propre.
+    /// Toute modification passe par <see cref="Mutate"/> (clone-swap + sauvegarde), si bien
+    /// qu'un Update concurrent (minuterie, widget, historique) ne peut plus faire éditer
+    /// à la fenêtre un objet orphelin, ni lui faire sauvegarder une vieille copie.
+    /// </summary>
+    private AppSettings _settings => _settingsProvider.Current;
+    private readonly ISettingsProvider _settingsProvider;
     private readonly IndexingService? _indexingService;
     private readonly ThemeService? _themeService;
     private readonly UniversalSearchService? _universalSearchService;
@@ -57,8 +63,7 @@ public partial class SettingsWindow : Window
         // release.ps1 bumpe à chaque release. Ne jamais la coder en dur en XAML.
         AboutVersionText.Text = $"Version {Constants.Version} • Par Felix-Antoine";
         
-        _settingsProvider = settingsProvider;
-        _settings = settingsProvider?.Current ?? AppSettings.Load();
+        _settingsProvider = settingsProvider ?? new SettingsProvider();
         _indexingService = indexingService;
         _themeService = themeService;
         _universalSearchService = universalSearchService;
@@ -278,8 +283,7 @@ public partial class SettingsWindow : Window
         
         if (!_isLoading)
         {
-            _settings.Search.MaxResults = (int)e.NewValue;
-            AutoSave();
+            Mutate(s => s.Search.MaxResults = (int)e.NewValue);
         }
     }
     
@@ -290,8 +294,7 @@ public partial class SettingsWindow : Window
         
         if (!_isLoading)
         {
-            _settings.Search.MaxSearchHistory = (int)e.NewValue;
-            AutoSave();
+            Mutate(s => s.Search.MaxSearchHistory = (int)e.NewValue);
         }
     }
     
@@ -302,8 +305,7 @@ public partial class SettingsWindow : Window
         
         if (!_isLoading)
         {
-            _settings.Appearance.WindowOpacity = e.NewValue;
-            AutoSave();
+            Mutate(s => s.Appearance.WindowOpacity = e.NewValue);
         }
     }
     
@@ -340,8 +342,7 @@ public partial class SettingsWindow : Window
         
         if (!_isLoading)
         {
-            _settings.Search.SearchDepth = (int)e.NewValue;
-            AutoSave();
+            Mutate(s => s.Search.SearchDepth = (int)e.NewValue);
         }
     }
     
@@ -355,8 +356,7 @@ public partial class SettingsWindow : Window
         
         if (!_isLoading)
         {
-            _settings.Search.SystemSearchDepth = (int)e.NewValue;
-            AutoSave();
+            Mutate(s => s.Search.SystemSearchDepth = (int)e.NewValue);
         }
     }
     
@@ -367,8 +367,7 @@ public partial class SettingsWindow : Window
         
         if (!_isLoading)
         {
-            _settings.Appearance.AnimationDurationMs = (int)e.NewValue;
-            AutoSave();
+            Mutate(s => s.Appearance.AnimationDurationMs = (int)e.NewValue);
         }
     }
     
@@ -378,8 +377,7 @@ public partial class SettingsWindow : Window
         {
             if (Enum.TryParse<AnimationStyle>(tag, out var style))
             {
-                _settings.Appearance.AnimationStyle = style;
-                AutoSave();
+                Mutate(s => s.Appearance.AnimationStyle = style);
             }
         }
     }
@@ -498,13 +496,12 @@ public partial class SettingsWindow : Window
     {
         if (!_isLoading && ThemeModeCombo.SelectedItem is ComboBoxItem { Tag: string theme })
         {
-            _settings.Appearance.Theme = theme;
+            // Muter d'abord : ThemeService lit le snapshot courant (horaires du mode Auto)
+            Mutate(s => s.Appearance.Theme = theme);
             AutoThemePanel.Visibility = theme == "Auto" ? Visibility.Visible : Visibility.Collapsed;
-            
+
             // Appliquer le thème immédiatement (gère Dark, Light, Auto, System)
             _themeService?.ApplyTheme(theme);
-            
-            AutoSave();
         }
     }
     
@@ -512,18 +509,19 @@ public partial class SettingsWindow : Window
     {
         if (!_isLoading)
         {
-            if (LightStartCombo.SelectedItem is ComboBoxItem { Tag: string lightStart })
-                _settings.Appearance.AutoThemeLightStart = lightStart;
-            if (DarkStartCombo.SelectedItem is ComboBoxItem { Tag: string darkStart })
-                _settings.Appearance.AutoThemeDarkStart = darkStart;
-            
-            // Réappliquer le thème si en mode Auto
+            var lightStart = (LightStartCombo.SelectedItem as ComboBoxItem)?.Tag as string;
+            var darkStart = (DarkStartCombo.SelectedItem as ComboBoxItem)?.Tag as string;
+            Mutate(s =>
+            {
+                if (lightStart != null) s.Appearance.AutoThemeLightStart = lightStart;
+                if (darkStart != null) s.Appearance.AutoThemeDarkStart = darkStart;
+            });
+
+            // Réappliquer le thème si en mode Auto (après la mutation : le service lit le snapshot courant)
             if (_settings.Appearance.Theme == "Auto")
             {
                 ApplyAutoTheme();
             }
-            
-            AutoSave();
         }
     }
     
@@ -539,14 +537,13 @@ public partial class SettingsWindow : Window
             UpdateColorPreview(color);
             if (!_isLoading)
             {
-                _settings.Appearance.AccentColor = color;
+                Mutate(s => s.Appearance.AccentColor = color);
                 // Appliquer immédiatement, comme le fait ThemeModeCombo_SelectionChanged
                 // pour le thème. Sans cet appel la couleur était bien persistée mais
                 // n'atterrissait dans les ressources qu'au prochain démarrage (App.OnStartup)
                 // ou au détour d'un changement de thème : titres de section, valeurs
                 // accentuées et badges restaient sur l'ancienne couleur.
                 _themeService?.ApplyAccentColor(color);
-                AutoSave();
             }
         }
     }
@@ -575,12 +572,19 @@ public partial class SettingsWindow : Window
     
     private void SaveHotkeySettings()
     {
-        _settings.Hotkey.UseAlt = HotkeyAltCheck.IsChecked == true;
-        _settings.Hotkey.UseCtrl = HotkeyCtrlCheck.IsChecked == true;
-        _settings.Hotkey.UseShift = HotkeyShiftCheck.IsChecked == true;
-        _settings.Hotkey.UseWin = HotkeyWinCheck.IsChecked == true;
-        _settings.Hotkey.Key = GetComboTag(HotkeyKeyCombo) ?? "Space";
-        AutoSave();
+        var useAlt = HotkeyAltCheck.IsChecked == true;
+        var useCtrl = HotkeyCtrlCheck.IsChecked == true;
+        var useShift = HotkeyShiftCheck.IsChecked == true;
+        var useWin = HotkeyWinCheck.IsChecked == true;
+        var key = GetComboTag(HotkeyKeyCombo) ?? "Space";
+        Mutate(s =>
+        {
+            s.Hotkey.UseAlt = useAlt;
+            s.Hotkey.UseCtrl = useCtrl;
+            s.Hotkey.UseShift = useShift;
+            s.Hotkey.UseWin = useWin;
+            s.Hotkey.Key = key;
+        });
     }
     
     private void CheckHotkeyChanged()
@@ -633,11 +637,11 @@ public partial class SettingsWindow : Window
         
         if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
         {
-            if (!_settings.Search.IndexedFolders.Contains(dialog.SelectedPath))
+            var selectedPath = dialog.SelectedPath;
+            if (!_settings.Search.IndexedFolders.Contains(selectedPath, StringComparer.OrdinalIgnoreCase))
             {
-                _settings.Search.IndexedFolders.Add(dialog.SelectedPath);
+                Mutate(s => s.Search.IndexedFolders.Add(selectedPath));
                 RefreshFoldersList();
-                AutoSave();
             }
             else
             {
@@ -653,9 +657,8 @@ public partial class SettingsWindow : Window
         {
             if (_settings.Search.IndexedFolders.Count > 1)
             {
-                _settings.Search.IndexedFolders.Remove(folder);
+                Mutate(s => s.Search.IndexedFolders.Remove(folder));
                 RefreshFoldersList();
-                AutoSave();
             }
             else
             {
@@ -675,9 +678,8 @@ public partial class SettingsWindow : Window
         
         if (result == MessageBoxResult.Yes)
         {
-            _settings.Search.ResetIndexedFolders();
+            Mutate(s => s.Search.ResetIndexedFolders());
             RefreshFoldersList();
-            AutoSave();
         }
     }
     
@@ -689,23 +691,21 @@ public partial class SettingsWindow : Window
     
     // === Sauvegarde automatique ===
     
-    private void AutoSave()
+    /// <summary>
+    /// Applique une modification via le provider (clone du snapshot courant, mutation,
+    /// sauvegarde, publication atomique) puis affiche le résultat RÉEL de l'écriture.
+    /// Ne jamais muter <see cref="_settings"/> directement : c'est un snapshot partagé
+    /// avec les recherches en arrière-plan, et il peut être remplacé à tout moment.
+    /// </summary>
+    private void Mutate(Action<AppSettings> change)
     {
         if (_isLoading) return;
-        
-        if (_settingsProvider != null)
-        {
-            // Utiliser le provider centralisé pour sauvegarder ET notifier les abonnés
-            _settingsProvider.Save();
-        }
-        else
-        {
-            _settings.Save();
-        }
-        Debug.WriteLine("[Settings] Auto-sauvegardé");
-        
+
+        var saved = _settingsProvider.Update(change);
+        Debug.WriteLine(saved ? "[Settings] Auto-sauvegardé" : "[Settings] ÉCHEC de la sauvegarde");
+
         // Afficher le feedback visuel
-        ShowSaveIndicator();
+        ShowSaveIndicator(saved);
     }
     
     /// <summary>
@@ -715,13 +715,22 @@ public partial class SettingsWindow : Window
     /// </summary>
     private Brush ThemeBrush(string key) => (Brush)FindResource(key);
 
-    private void ShowSaveIndicator()
+    private void ShowSaveIndicator(bool saved = true)
     {
-        AutoSaveIndicator.Text = "✓ Sauvegardé";
-        AutoSaveIndicator.Foreground = ThemeBrush("SuccessBrush");
-
-        _saveIndicatorTimer.Stop();
-        _saveIndicatorTimer.Start();
+        if (saved)
+        {
+            AutoSaveIndicator.Text = "✓ Sauvegardé";
+            AutoSaveIndicator.Foreground = ThemeBrush("SuccessBrush");
+            _saveIndicatorTimer.Stop();
+            _saveIndicatorTimer.Start();
+        }
+        else
+        {
+            // L'échec reste affiché (pas de minuterie de retour) : il doit être vu.
+            _saveIndicatorTimer.Stop();
+            AutoSaveIndicator.Text = "⚠ Échec de la sauvegarde (voir le journal)";
+            AutoSaveIndicator.Foreground = ThemeBrush("DangerBrush");
+        }
     }
 
     private void SaveIndicatorTimer_Tick(object? sender, EventArgs e)
@@ -737,23 +746,38 @@ public partial class SettingsWindow : Window
     {
         if (_isLoading) return;
         
-        // Synchroniser toutes les valeurs de checkboxes
-        _settings.StartWithWindows = StartWithWindowsCheck.IsChecked == true;
-        _settings.MinimizeOnStartup = MinimizeOnStartupCheck.IsChecked == true;
-        _settings.CloseAfterLaunch = CloseAfterLaunchCheck.IsChecked == true;
-        _settings.Appearance.ShowIndexingStatus = ShowIndexingStatusCheck.IsChecked == true;
-        _settings.Appearance.ShowSettingsButton = ShowSettingsButtonCheck.IsChecked == true;
-        _settings.SingleClickLaunch = SingleClickLaunchCheck.IsChecked == true;
-        _settings.Search.EnableSearchHistory = EnableSearchHistoryCheck.IsChecked == true;
-        _settings.Search.IndexHiddenFolders = IndexHiddenFoldersCheck.IsChecked == true;
-        _settings.Appearance.ShowCategoryBadges = ShowCategoryBadgesCheck.IsChecked == true;
-        _settings.Appearance.ShowGhostSuggestions = ShowGhostSuggestionsCheck.IsChecked == true;
-        _settings.Appearance.EnableAnimations = EnableAnimationsCheck.IsChecked == true;
-        _settings.Search.ScoringWeights.EnableRecencyBonus = EnableRecencyBonusCheck.IsChecked == true;
-        
+        // Lire toutes les cases sur le thread UI, puis les appliquer au clone en une seule fois
+        var startWithWindows = StartWithWindowsCheck.IsChecked == true;
+        var minimizeOnStartup = MinimizeOnStartupCheck.IsChecked == true;
+        var closeAfterLaunch = CloseAfterLaunchCheck.IsChecked == true;
+        var showIndexingStatus = ShowIndexingStatusCheck.IsChecked == true;
+        var showSettingsButton = ShowSettingsButtonCheck.IsChecked == true;
+        var singleClickLaunch = SingleClickLaunchCheck.IsChecked == true;
+        var enableSearchHistory = EnableSearchHistoryCheck.IsChecked == true;
+        var indexHiddenFolders = IndexHiddenFoldersCheck.IsChecked == true;
+        var showCategoryBadges = ShowCategoryBadgesCheck.IsChecked == true;
+        var showGhostSuggestions = ShowGhostSuggestionsCheck.IsChecked == true;
+        var enableAnimations = EnableAnimationsCheck.IsChecked == true;
+        var enableRecencyBonus = EnableRecencyBonusCheck.IsChecked == true;
+
+        Mutate(s =>
+        {
+            s.StartWithWindows = startWithWindows;
+            s.MinimizeOnStartup = minimizeOnStartup;
+            s.CloseAfterLaunch = closeAfterLaunch;
+            s.Appearance.ShowIndexingStatus = showIndexingStatus;
+            s.Appearance.ShowSettingsButton = showSettingsButton;
+            s.SingleClickLaunch = singleClickLaunch;
+            s.Search.EnableSearchHistory = enableSearchHistory;
+            s.Search.IndexHiddenFolders = indexHiddenFolders;
+            s.Appearance.ShowCategoryBadges = showCategoryBadges;
+            s.Appearance.ShowGhostSuggestions = showGhostSuggestions;
+            s.Appearance.EnableAnimations = enableAnimations;
+            s.Search.ScoringWeights.EnableRecencyBonus = enableRecencyBonus;
+        });
+
         UpdateAnimationSpeedPanelVisibility();
         UpdateStartupRegistry();
-        AutoSave();
     }
 
     // === Gestionnaires d'événements - Intégrations web ===
@@ -811,8 +835,7 @@ public partial class SettingsWindow : Window
                 
                 // Utiliser le nom résolu par l'API
                 WeatherCityBox.Text = resolvedCity;
-                _settings.Integrations.WeatherCity = resolvedCity;
-                AutoSave();
+                Mutate(s => s.Integrations.WeatherCity = resolvedCity);
                 
                 // Feedback: succès
                 WeatherValidationPanel.Background = ThemeBrush("SuccessSurfaceBrush");
@@ -847,8 +870,7 @@ public partial class SettingsWindow : Window
     {
         if (!_isLoading && WeatherUnitCombo.SelectedItem is ComboBoxItem { Tag: string unit })
         {
-            _settings.Integrations.WeatherUnit = unit;
-            AutoSave();
+            Mutate(s => s.Integrations.WeatherUnit = unit);
         }
     }
     
@@ -860,7 +882,6 @@ public partial class SettingsWindow : Window
         if (_isLoading || AiProviderCombo.SelectedItem is not ComboBoxItem selected) return;
         
         var provider = selected.Tag?.ToString() ?? "chatgpt";
-        _settings.Integrations.AiProvider = provider;
         
         switch (provider)
         {
@@ -879,10 +900,15 @@ public partial class SettingsWindow : Window
             // "custom" = on ne touche pas aux champs
         }
         
-        _settings.Integrations.AiApiUrl = AiApiUrlBox.Text;
-        _settings.Integrations.AiModel = AiModelBox.Text;
+        var apiUrl = AiApiUrlBox.Text;
+        var model = AiModelBox.Text;
+        Mutate(s =>
+        {
+            s.Integrations.AiProvider = provider;
+            s.Integrations.AiApiUrl = apiUrl;
+            s.Integrations.AiModel = model;
+        });
         UpdateAiFieldsState();
-        AutoSave();
     }
     
     /// <summary>
@@ -915,8 +941,8 @@ public partial class SettingsWindow : Window
     {
         if (!_isLoading)
         {
-            _settings.Integrations.AiApiUrl = AiApiUrlBox.Text.Trim();
-            AutoSave();
+            var apiUrl = AiApiUrlBox.Text.Trim();
+            Mutate(s => s.Integrations.AiApiUrl = apiUrl);
         }
     }
     
@@ -924,8 +950,21 @@ public partial class SettingsWindow : Window
     {
         if (!_isLoading)
         {
-            _settings.Integrations.AiApiKeyDecrypted = AiApiKeyBox.Password;
-            AutoSave();
+            var apiKey = AiApiKeyBox.Password;
+            try
+            {
+                Mutate(s => s.Integrations.AiApiKeyDecrypted = apiKey);
+            }
+            catch (System.Security.Cryptography.CryptographicException)
+            {
+                // DPAPI a échoué : la clé protégée précédente est conservée telle quelle,
+                // jamais remplacée par une valeur en clair (cf. SecureStorageService.Encrypt).
+                ShowSaveIndicator(false);
+                MessageBox.Show(
+                    "Impossible de protéger la clé API avec le chiffrement Windows (DPAPI).\n\n" +
+                    "La nouvelle clé n'a pas été enregistrée ; la précédente est conservée.",
+                    "Clé API non enregistrée", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
     }
     
@@ -933,8 +972,8 @@ public partial class SettingsWindow : Window
     {
         if (!_isLoading)
         {
-            _settings.Integrations.AiModel = AiModelBox.Text.Trim();
-            AutoSave();
+            var model = AiModelBox.Text.Trim();
+            Mutate(s => s.Integrations.AiModel = model);
         }
     }
     
@@ -942,8 +981,8 @@ public partial class SettingsWindow : Window
     {
         if (!_isLoading)
         {
-            _settings.Integrations.AiSystemPrompt = AiSystemPromptBox.Text;
-            AutoSave();
+            var prompt = AiSystemPromptBox.Text;
+            Mutate(s => s.Integrations.AiSystemPrompt = prompt);
         }
     }
     
@@ -952,8 +991,7 @@ public partial class SettingsWindow : Window
         if (_isLoading || AiDebounceValue == null) return;
         var seconds = (int)e.NewValue;
         AiDebounceValue.Text = $"{seconds}s";
-        _settings.Integrations.AiDebounceSeconds = seconds;
-        AutoSave();
+        Mutate(s => s.Integrations.AiDebounceSeconds = seconds);
     }
     
     private async void AiTestBtn_Click(object sender, RoutedEventArgs e)
@@ -1063,9 +1101,9 @@ public partial class SettingsWindow : Window
                 return;
             }
             
-            // S'assurer que l'option est activée
-            _settings.Search.IndexBrowserBookmarks = true;
-            _settings.Save();
+            // S'assurer que l'option est activée (via le provider : jamais d'écriture d'une vieille copie)
+            if (!_settings.Search.IndexBrowserBookmarks)
+                Mutate(s => s.Search.IndexBrowserBookmarks = true);
             
             // Réindexer
             await _indexingService.ReindexAsync();
@@ -1194,9 +1232,15 @@ public partial class SettingsWindow : Window
     {
         if (sender is FrameworkElement { Tag: SystemControlCommand cmd })
         {
-            cmd.IsEnabled = !cmd.IsEnabled;
+            // Identité stable : le Type de commande (l'objet affiché peut venir d'un ancien snapshot)
+            var type = cmd.Type;
+            var enabled = !cmd.IsEnabled;
+            Mutate(s =>
+            {
+                var target = s.SystemCommands.FirstOrDefault(c => c.Type == type);
+                if (target != null) target.IsEnabled = enabled;
+            });
             LoadSystemCommands();
-            AutoSave();
             e.Handled = true; // Empêcher la propagation vers le parent
         }
     }
@@ -1225,7 +1269,7 @@ public partial class SettingsWindow : Window
         
         // Vérifier les doublons
         var duplicate = _settings.SystemCommands.FirstOrDefault(c => 
-            c != _selectedSystemCommand && 
+            c.Type != _selectedSystemCommand.Type && 
             c.Prefix.Equals(newPrefix, StringComparison.OrdinalIgnoreCase));
         
         if (duplicate != null)
@@ -1235,13 +1279,21 @@ public partial class SettingsWindow : Window
             return;
         }
         
-        // Appliquer les modifications
-        _selectedSystemCommand.Prefix = newPrefix;
-        _selectedSystemCommand.Icon = string.IsNullOrWhiteSpace(newIcon) ? "⚡" : newIcon;
-        
-        // Rafraîchir la liste et sauvegarder
+        // Appliquer les modifications sur le clone (identité stable : le Type de commande)
+        var type = _selectedSystemCommand.Type;
+        var icon = string.IsNullOrWhiteSpace(newIcon) ? "⚡" : newIcon;
+        Mutate(s =>
+        {
+            var target = s.SystemCommands.FirstOrDefault(c => c.Type == type);
+            if (target != null)
+            {
+                target.Prefix = newPrefix;
+                target.Icon = icon;
+            }
+        });
+
+        // Rafraîchir la liste
         LoadSystemCommands();
-        AutoSave();
         CommandEditPanel.Visibility = Visibility.Collapsed;
         _selectedSystemCommand = null;
     }
@@ -1251,9 +1303,8 @@ public partial class SettingsWindow : Window
         if (MessageBox.Show("Réinitialiser toutes les commandes système aux valeurs par défaut?", 
             "Confirmation", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
         {
-            _settings.ResetSystemCommands();
+            Mutate(s => s.ResetSystemCommands());
             LoadSystemCommands();
-            AutoSave();
             CommandEditPanel.Visibility = Visibility.Collapsed;
         }
     }
@@ -1265,8 +1316,8 @@ public partial class SettingsWindow : Window
         UpdateAutoReindexOptionsVisibility();
         if (!_isLoading)
         {
-            _settings.Search.AutoReindexEnabled = AutoReindexEnabledCheck.IsChecked == true;
-            AutoSave();
+            var enabled = AutoReindexEnabledCheck.IsChecked == true;
+            Mutate(s => s.Search.AutoReindexEnabled = enabled);
             
             // Reconfigurer le timer
             if (Application.Current is App app)
@@ -1278,10 +1329,10 @@ public partial class SettingsWindow : Window
     {
         if (!_isLoading)
         {
-            _settings.Search.AutoReindexMode = ReindexTimeRadio.IsChecked == true 
-                ? AutoReindexMode.ScheduledTime 
+            var mode = ReindexTimeRadio.IsChecked == true
+                ? AutoReindexMode.ScheduledTime
                 : AutoReindexMode.Interval;
-            AutoSave();
+            Mutate(s => s.Search.AutoReindexMode = mode);
             
             // Reconfigurer le timer
             if (Application.Current is App app)
@@ -1293,8 +1344,8 @@ public partial class SettingsWindow : Window
     {
         if (!_isLoading && ReindexIntervalCombo.SelectedItem is ComboBoxItem { Tag: string tag })
         {
-            _settings.Search.AutoReindexIntervalMinutes = int.Parse(tag);
-            AutoSave();
+            var minutes = int.Parse(tag);
+            Mutate(s => s.Search.AutoReindexIntervalMinutes = minutes);
             
             if (Application.Current is App app)
                 app.SetupAutoReindex();
@@ -1307,8 +1358,8 @@ public partial class SettingsWindow : Window
         {
             var hour = GetComboTag(ReindexHourCombo) ?? "03";
             var minute = GetComboTag(ReindexMinuteCombo) ?? "00";
-            _settings.Search.AutoReindexScheduledTime = $"{hour}:{minute}";
-            AutoSave();
+            var scheduled = $"{hour}:{minute}";
+            Mutate(s => s.Search.AutoReindexScheduledTime = scheduled);
             
             if (Application.Current is App app)
                 app.SetupAutoReindex();
@@ -1322,8 +1373,7 @@ public partial class SettingsWindow : Window
         if (MessageBox.Show("Voulez-vous effacer tout l'historique de recherche?", "Confirmation",
             MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
         {
-            _settings.Search.ClearSearchHistory();
-            _settings.Save();
+            Mutate(s => s.Search.ClearSearchHistory());
             LoadStatistics();
             MessageBox.Show("Historique effacé!", "Succès", MessageBoxButton.OK, MessageBoxImage.Information);
         }

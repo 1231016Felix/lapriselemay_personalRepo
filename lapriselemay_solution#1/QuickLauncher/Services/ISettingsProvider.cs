@@ -23,7 +23,8 @@ public interface ISettingsProvider
     /// <summary>
     /// Sauvegarde les paramètres actuels sur disque et notifie les abonnés.
     /// </summary>
-    void Save();
+    /// <returns><c>true</c> si l'écriture a réussi.</returns>
+    bool Save();
     
     /// <summary>
     /// Force un rechargement depuis le disque (utile après modification externe).
@@ -36,5 +37,6 @@ public interface ISettingsProvider
     /// Thread-safe : les lecteurs concurrents continuent de voir un snapshot stable.
     /// </summary>
     /// <param name="updateAction">Action de modification sur les paramètres.</param>
-    void Update(Action<AppSettings> updateAction);
+    /// <returns><c>true</c> si la nouvelle version a été écrite sur disque.</returns>
+    bool Update(Action<AppSettings> updateAction);
 }

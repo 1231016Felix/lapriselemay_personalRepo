@@ -118,9 +118,18 @@ public sealed class AppSettings
                     !Services.SecureStorageService.IsEncrypted(settings.Integrations.AiApiKey))
                 {
                     var plainKey = settings.Integrations.AiApiKey;
-                    settings.Integrations.AiApiKeyDecrypted = plainKey;
-                    settings.Save();
-                    Services.Log.Info("[Settings] Clé API migrée vers DPAPI");
+                    try
+                    {
+                        settings.Integrations.AiApiKeyDecrypted = plainKey;
+                        if (settings.Save())
+                            Services.Log.Info("[Settings] Clé API migrée vers DPAPI");
+                    }
+                    catch (System.Security.Cryptography.CryptographicException ex)
+                    {
+                        // DPAPI indisponible : la clé reste dans son état legacy (déjà en clair
+                        // sur disque) au lieu de faire échouer tout le chargement des réglages.
+                        Services.Log.Warning($"[Settings] Migration DPAPI de la clé API impossible : {ex.Message}");
+                    }
                 }
 
                 Services.Log.Debug($"[Settings] Chargé avec {settings.Search.PinnedItems.Count} épingles (format: {(isNewFormat ? "v2" : "legacy→v2")})");
@@ -137,7 +146,14 @@ public sealed class AppSettings
         return new AppSettings();
     }
 
-    public void Save()
+    /// <summary>
+    /// Écrit les paramètres sur disque (fichier temporaire puis remplacement atomique).
+    /// </summary>
+    /// <returns>
+    /// <c>true</c> si le fichier a réellement été écrit ; <c>false</c> si l'écriture a échoué
+    /// (erreur journalisée). Les appelants doivent relayer l'échec au lieu d'annoncer un succès.
+    /// </returns>
+    public bool Save()
     {
         try
         {
@@ -155,11 +171,13 @@ public sealed class AppSettings
             File.Move(tempPath, SettingsPath, overwrite: true);
 
             Services.Log.Debug($"[Settings] Sauvegardé avec {Search.PinnedItems.Count} épingles");
+            return true;
         }
         catch (Exception ex)
         {
             // Les modifications (épingles, historique, clé API) ne sont PAS persistées.
             Services.Log.Error("[Settings] Échec de la sauvegarde", ex);
+            return false;
         }
     }
     

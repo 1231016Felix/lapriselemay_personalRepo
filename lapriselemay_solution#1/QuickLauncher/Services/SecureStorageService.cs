@@ -31,6 +31,10 @@ public static class SecureStorageService
     /// </summary>
     /// <param name="plainText">Texte en clair à protéger.</param>
     /// <returns>Chaîne préfixée "dpapi:" + Base64, ou <see cref="string.Empty"/> si l'entrée est vide.</returns>
+    /// <exception cref="CryptographicException">
+    /// Si DPAPI échoue. Aucune valeur en clair n'est jamais retournée à la place : l'appelant
+    /// conserve la valeur protégée existante et signale l'échec à l'utilisateur.
+    /// </exception>
     public static string Encrypt(string plainText)
     {
         if (string.IsNullOrEmpty(plainText))
@@ -44,11 +48,10 @@ public static class SecureStorageService
         }
         catch (CryptographicException ex)
         {
-            // En cas d'échec DPAPI (très rare), retourner la valeur en clair
-            // plutôt que perdre la clé de l'utilisateur. Ce repli doit être
-            // visible en production : la valeur sera persistée NON chiffrée.
-            Log.Warning($"[SecureStorage] Échec du chiffrement DPAPI — la valeur sera stockée en clair: {ex.Message}");
-            return plainText;
+            // Ne jamais retomber sur un stockage en clair : le setter appelant n'assigne
+            // rien, la valeur protégée précédente reste donc intacte, et l'UI affiche l'échec.
+            Log.Error("[SecureStorage] Échec du chiffrement DPAPI — valeur non enregistrée", ex);
+            throw;
         }
     }
 

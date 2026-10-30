@@ -46,11 +46,14 @@ public sealed class SettingsProvider : ISettingsProvider
         Log.Debug($"[SettingsProvider] Initialisé avec {_current.Search.IndexedFolders.Count} dossiers indexés");
     }
 
-    public void Save()
+    public bool Save()
     {
-        _current.Save();
-        Log.Debug("[SettingsProvider] Sauvegardé sur disque et notification envoyée");
+        var saved = _current.Save();
+        Log.Debug(saved
+            ? "[SettingsProvider] Sauvegardé sur disque et notification envoyée"
+            : "[SettingsProvider] ÉCHEC de la sauvegarde sur disque");
         SettingsChanged?.Invoke(this, _current);
+        return saved;
     }
 
     public void Reload()
@@ -73,18 +76,28 @@ public sealed class SettingsProvider : ISettingsProvider
     /// 
     /// L'événement <see cref="SettingsChanged"/> est déclenché hors du verrou
     /// pour éviter les risques de deadlock si un abonné tente un Update() en réaction.
+    /// 
+    /// Si <paramref name="updateAction"/> lève une exception, rien n'est publié :
+    /// le snapshot courant reste inchangé.
     /// </summary>
-    public void Update(Action<AppSettings> updateAction)
+    /// <returns>
+    /// <c>true</c> si la nouvelle version a été écrite sur disque. En cas d'échec d'écriture,
+    /// la modification reste appliquée en mémoire pour la session mais <c>false</c> est
+    /// retourné afin que l'appelant puisse le signaler.
+    /// </returns>
+    public bool Update(Action<AppSettings> updateAction)
     {
         AppSettings snapshot;
+        bool saved;
         lock (_updateLock)
         {
             var clone = _current.Clone();
             updateAction(clone);
-            clone.Save();
+            saved = clone.Save();
             _current = clone;
             snapshot = clone;
         }
         SettingsChanged?.Invoke(this, snapshot);
+        return saved;
     }
 }

@@ -39,6 +39,18 @@ jobs:
       - name: Build Release
         run: cargo build --release --locked
 
+      # Lance vraiment l'exe : démarrage, session ETW, instance unique, pause, fermeture propre.
+      - name: Test de fumée
+        run: ./ci/smoke-test.ps1 -Exe target/release/GameMonitor.exe -Screenshot "$env:RUNNER_TEMP/captures"
+
+      - name: Captures de l'overlay
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: captures-overlay
+          path: ${{ runner.temp }}/captures/*.png
+          if-no-files-found: ignore
+
       - name: Exe portable
         uses: actions/upload-artifact@v4
         with:

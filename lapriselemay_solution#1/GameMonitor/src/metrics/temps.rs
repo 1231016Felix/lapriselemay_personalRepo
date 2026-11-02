@@ -55,14 +55,16 @@ impl Temps {
 
     /// Renvoie (température °C, source).
     pub fn cpu(&mut self) -> (Option<f32>, &'static str) {
+        // Réessai périodique même quand l'ACPI répond : LibreHardwareMonitor, plus précis,
+        // a pu être lancé après GameMonitor (ou relancé après avoir été fermé).
+        if (self.lhm.is_none() || self.acpi.is_none()) && Instant::now() >= self.next_retry {
+            self.connect();
+        }
         if let Some(t) = self.read_lhm() {
             return (Some(t), "LHM");
         }
         if let Some(t) = self.read_acpi() {
             return (Some(t), "ACPI");
-        }
-        if Instant::now() >= self.next_retry {
-            self.connect();
         }
         (None, "")
     }

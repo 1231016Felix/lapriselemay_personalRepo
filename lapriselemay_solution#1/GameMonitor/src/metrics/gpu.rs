@@ -1,6 +1,8 @@
 //! GPU : NVML (fourni avec le pilote NVIDIA) si disponible,
 //! sinon compteurs Windows génériques (marche aussi pour Intel et AMD).
 
+use std::collections::HashMap;
+
 use nvml_wrapper::Nvml;
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 
@@ -60,8 +62,7 @@ impl Gpu {
             return info;
         }
         if let Some(engine) = &self.engine {
-            let total: f64 = engine.values().iter().map(|(_, v)| v).sum();
-            info.usage = Some(total.min(100.0) as f32);
+            info.usage = Some(busiest_engine(&engine.values()) as f32);
         }
         if let Some(dedicated) = &self.dedicated {
             let max = dedicated.values().iter().map(|(_, v)| *v).fold(0.0, f64::max);
@@ -70,5 +71,45 @@ impl Gpu {
             }
         }
         info
+    }
+}
+
+/// Charge GPU comme le Gestionnaire des tâches : chaque moteur additionne ses processus
+/// (`pid_1234_luid_0x…_phys_0_eng_0_engtype_3D`), et la charge est celle du moteur le plus occupé.
+/// Additionner toutes les instances compterait deux fois un PC à deux GPU (iGPU + carte graphique).
+fn busiest_engine(instances: &[(String, f64)]) -> f64 {
+    let mut engines: HashMap<&str, f64> = HashMap::new();
+    for (name, value) in instances {
+        let engine = name.find("luid_").map_or(name.as_str(), |i| &name[i..]);
+        *engines.entry(engine).or_default() += value;
+    }
+    engines.into_values().fold(0.0, f64::max).min(100.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn instance(pid: u32, engine: &str, value: f64) -> (String, f64) {
+        (format!("pid_{pid}_luid_0x00000000_{engine}_engtype_3D"), value)
+    }
+
+    #[test]
+    fn processes_add_up_on_the_same_engine() {
+        let values = [instance(10, "0x0000C5E2_phys_0_eng_0", 30.0), instance(20, "0x0000C5E2_phys_0_eng_0", 25.0)];
+        assert_eq!(busiest_engine(&values), 55.0);
+    }
+
+    #[test]
+    fn two_gpus_are_not_added_together() {
+        let values = [instance(10, "0x0000C5E2_phys_0_eng_0", 40.0), instance(20, "0x0000D1A0_phys_0_eng_0", 70.0)];
+        assert_eq!(busiest_engine(&values), 70.0);
+    }
+
+    #[test]
+    fn capped_at_100_and_zero_without_data() {
+        let values = [instance(10, "0x1_phys_0_eng_0", 80.0), instance(20, "0x1_phys_0_eng_0", 40.0)];
+        assert_eq!(busiest_engine(&values), 100.0);
+        assert_eq!(busiest_engine(&[]), 0.0);
     }
 }

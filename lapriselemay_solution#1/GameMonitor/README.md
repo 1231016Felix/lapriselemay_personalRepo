@@ -41,6 +41,10 @@ Relancer `GameMonitor.exe` alors qu'il tourne déjà réaffiche l'overlay et rap
 (un seul GameMonitor à la fois). Si une autre application a déjà pris un des raccourcis,
 l'overlay l'indique en orange.
 
+Avec plusieurs écrans, l'overlay se place dans le coin choisi de l'écran du jeu (la fenêtre au premier plan),
+et le suit dans la seconde s'il change d'écran. Cliquer sur le bureau ou la barre des tâches ne le déplace pas.
+Sa taille suit la mise à l'échelle de chaque écran (100 %, 150 %…).
+
 Pour le lancer à l'ouverture de session : Windows ne démarre pas depuis le dossier Démarrage une
 application qui demande les droits administrateur. Il faut une tâche du Planificateur de tâches,
 déclenchée « À l'ouverture de session », avec « Exécuter avec les autorisations maximales ».
@@ -61,6 +65,8 @@ La température du GPU NVIDIA, elle, fonctionne toujours.
 
 - FPS : les jeux DirectX 9 à 12 sont couverts. Les jeux Vulkan ou OpenGL peuvent ne pas en afficher.
 - L'overlay ne s'affiche pas en plein écran exclusif (voir ci-dessus).
+- Avec plusieurs écrans, l'overlay suit la fenêtre au premier plan, comme la mesure des FPS : cliquer dans une
+  application de l'autre écran (navigateur, Discord…) l'y emmène, jusqu'au retour dans le jeu.
 - Comme toute fenêtre posée par-dessus un jeu en fenêtré sans bordure, l'overlay peut obliger Windows
   à composer l'image au lieu de la laisser au jeu (« Independent Flip »), ce qui peut ajouter jusqu'à
   une image de latence. En partie compétitive, Ctrl+Maj+F10 le masque.
@@ -79,16 +85,16 @@ donc l'exe n'a pas besoin du Visual C++ Redistributable.
 Pour tester sans la demande d'administrateur : `cargo run` (debug), ou définir `GAMEMONITOR_NO_ADMIN=1` avant
 `cargo build --release`.
 
-Tests : `cargo test` (mise en forme, calcul des FPS, charge GPU). Le CI lance aussi
-`ci/smoke-test.ps1` sur un vrai Windows : démarrage, session ETW, instance unique, pause quand
-l'overlay est masqué, et fermeture sans session ETW laissée ouverte.
+Tests : `cargo test` (mise en forme, calcul des FPS, charge GPU, placement de l'overlay). Le CI lance aussi
+`ci/smoke-test.ps1` sur un vrai Windows : démarrage, session ETW, placement dans les quatre coins, instance
+unique, pause quand l'overlay est masqué, et fermeture sans session ETW laissée ouverte.
 
 ## Structure
 
 ```
 src/
   main.rs          démarrage, instance unique, arrêt
-  overlay.rs       fenêtre Win32, dessin GDI, raccourcis
+  overlay.rs       fenêtre Win32 sur l'écran du jeu, dessin GDI, raccourcis
   format.rs        mise en forme et couleurs des lignes
   metrics/
     mod.rs         thread de collecte (1 fois par seconde, en pause quand l'overlay est masqué)

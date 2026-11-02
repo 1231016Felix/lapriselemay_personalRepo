@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Gdi::*;
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows::Win32::UI::HiDpi::GetDpiForSystem;
+use windows::Win32::UI::HiDpi::{GetDpiForMonitor, GetDpiForSystem, MDT_EFFECTIVE_DPI};
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::{PCWSTR, w};
@@ -30,7 +30,9 @@ const OPACITY: u8 = 230;
 struct State {
     shared: SharedSnapshot,
     control: Control,
+    /// Police et échelle au DPI de l'écran où s'affiche l'overlay (96 = 100 %).
     font: HFONT,
+    dpi: u32,
     scale: f32,
     detailed: bool,
     visible: bool,
@@ -42,6 +44,25 @@ struct State {
     label_w: i32,
     line_h: i32,
     size: (i32, i32),
+}
+
+impl State {
+    /// Adapte la police, la hauteur de ligne et les espacements au DPI de l'écran : le processus est
+    /// Per-Monitor V2, chaque écran a donc le sien. La police n'est recréée que si le DPI change.
+    fn set_dpi(&mut self, dpi: u32) {
+        if dpi == self.dpi {
+            return;
+        }
+        self.dpi = dpi;
+        self.scale = dpi as f32 / 96.0;
+        self.line_h = (19.0 * self.scale) as i32;
+        let old = std::mem::replace(&mut self.font, create_font(self.scale));
+        if !old.is_invalid() {
+            unsafe {
+                let _ = DeleteObject(old.into());
+            }
+        }
+    }
 }
 
 thread_local! {
@@ -58,6 +79,28 @@ fn text_width(hdc: HDC, s: &str) -> i32 {
         let _ = GetTextExtentPoint32W(hdc, &wide(s), &mut size);
     }
     size.cx
+}
+
+/// Consolas demi-gras, 15 px à 100 %.
+fn create_font(scale: f32) -> HFONT {
+    unsafe {
+        CreateFontW(
+            -((15.0 * scale) as i32),
+            0,
+            0,
+            0,
+            FW_SEMIBOLD.0 as i32,
+            0,
+            0,
+            0,
+            DEFAULT_CHARSET,
+            OUT_DEFAULT_PRECIS,
+            CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY,
+            (FF_MODERN.0 | FIXED_PITCH.0) as u32,
+            w!("Consolas"),
+        )
+    }
 }
 
 /// Demande à l'overlay déjà lancé de se réafficher (et de rappeler les raccourcis).
@@ -81,41 +124,25 @@ pub fn run(shared: SharedSnapshot, control: Control) {
         };
         RegisterClassW(&wc);
 
-        let scale = GetDpiForSystem() as f32 / 96.0;
-        let font = CreateFontW(
-            -((15.0 * scale) as i32),
-            0,
-            0,
-            0,
-            FW_SEMIBOLD.0 as i32,
-            0,
-            0,
-            0,
-            DEFAULT_CHARSET,
-            OUT_DEFAULT_PRECIS,
-            CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY,
-            (FF_MODERN.0 | FIXED_PITCH.0) as u32,
-            w!("Consolas"),
-        );
-
-        STATE.with(|s| {
-            *s.borrow_mut() = Some(State {
-                shared,
-                control,
-                font,
-                scale,
-                detailed: false,
-                visible: true,
-                corner: 0,
-                hint_until: Instant::now() + HINT,
-                missing_hotkeys: String::new(),
-                lines: Vec::new(),
-                label_w: 0,
-                line_h: (19.0 * scale) as i32,
-                size: (10, 10),
-            })
-        });
+        let mut state = State {
+            shared,
+            control,
+            font: HFONT::default(),
+            dpi: 0,
+            scale: 1.0,
+            detailed: false,
+            visible: true,
+            corner: 0,
+            hint_until: Instant::now() + HINT,
+            missing_hotkeys: String::new(),
+            lines: Vec::new(),
+            label_w: 0,
+            line_h: 0,
+            size: (10, 10),
+        };
+        // DPI de l'écran principal pour commencer ; refresh() passe ensuite à celui de l'écran du jeu.
+        state.set_dpi(GetDpiForSystem());
+        STATE.with(|s| *s.borrow_mut() = Some(state));
 
         let ex = WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
         let Ok(hwnd) = CreateWindowExW(
@@ -164,18 +191,25 @@ pub fn run(shared: SharedSnapshot, control: Control) {
             let _ = TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
-        let _ = DeleteObject(font.into());
+        // La police a pu être recréée à chaque changement de DPI : on libère celle en cours.
+        if let Some(st) = STATE.with(|s| s.borrow_mut().take()) {
+            let _ = DeleteObject(st.font.into());
+        }
     }
 }
 
-/// Recalcule le texte, redimensionne la fenêtre et la replace dans son coin.
+/// Recalcule le texte, redimensionne la fenêtre et la replace dans son coin, sur l'écran du jeu
+/// et à la taille qui convient au DPI de cet écran.
 fn refresh(hwnd: HWND) {
-    STATE.with(|cell| {
+    let placement = STATE.with(|cell| {
         let mut guard = cell.borrow_mut();
-        let Some(st) = guard.as_mut() else { return };
+        let st = guard.as_mut()?;
         if !st.visible {
-            return;
+            return None;
         }
+        let (screen, dpi) = target_screen(hwnd)?;
+        st.set_dpi(dpi);
+
         let snap = st.shared.lock().map(|s| s.clone()).unwrap_or_default();
         let hint = Instant::now() < st.hint_until;
         st.lines = build_lines(&snap, st.detailed, hint);
@@ -211,19 +245,72 @@ fn refresh(hwnd: HWND) {
             st.size = (w, h);
 
             let margin = (10.0 * st.scale) as i32;
-            let sw = GetSystemMetrics(SM_CXSCREEN);
-            let sh = GetSystemMetrics(SM_CYSCREEN);
-            let (x, y) = match st.corner {
-                0 => (margin, margin),
-                1 => (sw - w - margin, margin),
-                2 => (sw - w - margin, sh - h - margin),
-                _ => (margin, sh - h - margin),
-            };
-            // Réaffirme « toujours au premier plan » à chaque seconde : certains jeux le retirent.
-            let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), x, y, w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
-            let _ = InvalidateRect(Some(hwnd), None, false);
+            let (x, y) = corner_position(screen, st.size, margin, st.corner);
+            Some((x, y, w, h))
         }
     });
+    // SetWindowPos hors de l'emprunt de STATE : en passant sur un écran d'un autre DPI,
+    // Windows envoie WM_DPICHANGED à la fenêtre pendant l'appel.
+    let Some((x, y, w, h)) = placement else { return };
+    unsafe {
+        // Réaffirme « toujours au premier plan » à chaque seconde : certains jeux le retirent.
+        let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), x, y, w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        let _ = InvalidateRect(Some(hwnd), None, false);
+    }
+}
+
+/// Rectangle (coordonnées du bureau virtuel) et DPI de l'écran où afficher l'overlay : celui de la
+/// fenêtre au premier plan, donc du jeu. Quand c'est le bureau ou la barre des tâches (ou aucune
+/// fenêtre, le temps d'un changement de focus), l'overlay reste sur son écran actuel.
+fn target_screen(overlay: HWND) -> Option<(RECT, u32)> {
+    let fg = unsafe { GetForegroundWindow() };
+    let follow = !fg.is_invalid() && !is_shell_window(fg);
+    let screen = if follow { screen_of(fg) } else { None };
+    // Au lancement, l'écran actuel est l'écran principal, où la fenêtre est créée.
+    screen.or_else(|| screen_of(overlay))
+}
+
+/// Rectangle et DPI de l'écran qui contient (la plus grande partie de) cette fenêtre.
+fn screen_of(window: HWND) -> Option<(RECT, u32)> {
+    unsafe {
+        let monitor = MonitorFromWindow(window, MONITOR_DEFAULTTOPRIMARY);
+        let mut info = MONITORINFO { cbSize: size_of::<MONITORINFO>() as u32, ..Default::default() };
+        let (mut dpi, mut dpi_y) = (0, 0);
+        // Échoue si l'écran vient d'être débranché.
+        if GetMonitorInfoW(monitor, &mut info).as_bool()
+            && GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi, &mut dpi_y).is_ok()
+        {
+            Some((info.rcMonitor, dpi))
+        } else {
+            None
+        }
+    }
+}
+
+fn is_shell_window(hwnd: HWND) -> bool {
+    let mut class = [0u16; 256];
+    let len = unsafe { GetClassNameW(hwnd, &mut class) };
+    is_shell_class(&String::from_utf16_lossy(&class[..usize::try_from(len).unwrap_or(0)]))
+}
+
+/// Bureau et barres des tâches (écran principal et autres écrans) : cliquer dessus ne doit pas
+/// faire changer l'overlay d'écran.
+fn is_shell_class(class: &str) -> bool {
+    matches!(class, "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd")
+}
+
+/// Position de l'overlay (taille `size`) dans le coin `corner` de l'écran : 0 en haut à gauche, puis
+/// dans le sens des aiguilles d'une montre. Coordonnées négatives pour un écran à gauche ou au-dessus
+/// de l'écran principal.
+fn corner_position(screen: RECT, (w, h): (i32, i32), margin: i32, corner: u8) -> (i32, i32) {
+    let (left, top) = (screen.left + margin, screen.top + margin);
+    let (right, bottom) = (screen.right - w - margin, screen.bottom - h - margin);
+    match corner {
+        0 => (left, top),
+        1 => (right, top),
+        2 => (right, bottom),
+        _ => (left, bottom),
+    }
 }
 
 fn paint(hwnd: HWND) {
@@ -325,6 +412,11 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             LRESULT(0)
         }
         WM_ERASEBKGND => LRESULT(1),
+        WM_DPICHANGED => {
+            // refresh() calcule déjà la taille au DPI de l'écran visé avant d'y déplacer l'overlay,
+            // et suit dans la seconde un changement d'échelle : le rectangle proposé ne sert pas.
+            LRESULT(0)
+        }
         WM_HOTKEY => {
             on_hotkey(hwnd, wparam.0 as i32);
             LRESULT(0)
@@ -353,6 +445,41 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             LRESULT(0)
         }
         _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn corners_of_the_screen() {
+        let screen = RECT { left: 0, top: 0, right: 1920, bottom: 1080 };
+        assert_eq!(corner_position(screen, (300, 200), 10, 0), (10, 10));
+        assert_eq!(corner_position(screen, (300, 200), 10, 1), (1610, 10));
+        assert_eq!(corner_position(screen, (300, 200), 10, 2), (1610, 870));
+        assert_eq!(corner_position(screen, (300, 200), 10, 3), (10, 870));
+    }
+
+    #[test]
+    fn screen_left_of_or_above_the_primary_one() {
+        // Écran à gauche de l'écran principal, et plus haut que lui : coordonnées négatives.
+        let left = RECT { left: -2560, top: -360, right: 0, bottom: 1080 };
+        assert_eq!(corner_position(left, (300, 200), 15, 0), (-2545, -345));
+        assert_eq!(corner_position(left, (300, 200), 15, 2), (-315, 865));
+        let above = RECT { left: 0, top: -1080, right: 1920, bottom: 0 };
+        assert_eq!(corner_position(above, (300, 200), 10, 1), (1610, -1070));
+        assert_eq!(corner_position(above, (300, 200), 10, 3), (10, -210));
+    }
+
+    #[test]
+    fn desktop_and_taskbars_keep_the_screen() {
+        for class in ["Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd"] {
+            assert!(is_shell_class(class), "{class}");
+        }
+        for class in ["UnrealWindow", "UnityWndClass", "SDL_app", ""] {
+            assert!(!is_shell_class(class), "{class}");
+        }
     }
 }
 

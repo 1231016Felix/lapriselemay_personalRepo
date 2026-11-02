@@ -32,11 +32,18 @@ fichier d'échange, espace libre de chaque disque, durée depuis l'allumage et l
 | Raccourci | Action |
 |---|---|
 | Ctrl+Maj+F9 | Mode détaillé |
-| Ctrl+Maj+F10 | Masquer / afficher (la collecte se met en pause quand c'est masqué) |
+| Ctrl+Maj+F10 | Masquer / afficher (masqué, plus rien n'est mesuré, FPS compris) |
 | Ctrl+Maj+F11 | Changer de coin d'écran |
 | Ctrl+Maj+F12 | Quitter |
 
 L'overlay laisse passer les clics et ne prend jamais le focus du jeu.
+Relancer `GameMonitor.exe` alors qu'il tourne déjà réaffiche l'overlay et rappelle les raccourcis
+(un seul GameMonitor à la fois). Si une autre application a déjà pris un des raccourcis,
+l'overlay l'indique en orange.
+
+Pour le lancer à l'ouverture de session : Windows ne démarre pas depuis le dossier Démarrage une
+application qui demande les droits administrateur. Il faut une tâche du Planificateur de tâches,
+déclenchée « À l'ouverture de session », avec « Exécuter avec les autorisations maximales ».
 
 ### Température du CPU
 
@@ -44,15 +51,19 @@ Windows ne donne pas la température des cœurs du processeur sans pilote spéci
 
 1. **LibreHardwareMonitor**, s'il tourne en arrière-plan. C'est la mesure la plus précise.
    Il est portable (rien à installer) : <https://github.com/LibreHardwareMonitor/LibreHardwareMonitor>.
-   GameMonitor lit ses capteurs automatiquement.
+   GameMonitor lit ses capteurs automatiquement, même si LibreHardwareMonitor est lancé après lui.
 2. La zone thermique ACPI de la carte mère, si elle en a une. Elle est moins précise et absente sur beaucoup de PC.
 
-Sinon, la ligne affiche « temp. n/d ». La température du GPU NVIDIA, elle, fonctionne toujours.
+Sinon, la ligne affiche « temp. n/d ». Le mode détaillé indique la source utilisée (LHM ou ACPI).
+La température du GPU NVIDIA, elle, fonctionne toujours.
 
 ### Limites connues
 
 - FPS : les jeux DirectX 9 à 12 sont couverts. Les jeux Vulkan ou OpenGL peuvent ne pas en afficher.
 - L'overlay ne s'affiche pas en plein écran exclusif (voir ci-dessus).
+- Comme toute fenêtre posée par-dessus un jeu en fenêtré sans bordure, l'overlay peut obliger Windows
+  à composer l'image au lieu de la laisser au jeu (« Independent Flip »), ce qui peut ajouter jusqu'à
+  une image de latence. En partie compétitive, Ctrl+Maj+F10 le masque.
 
 ## Compiler
 
@@ -68,17 +79,23 @@ donc l'exe n'a pas besoin du Visual C++ Redistributable.
 Pour tester sans la demande d'administrateur : `cargo run` (debug), ou définir `GAMEMONITOR_NO_ADMIN=1` avant
 `cargo build --release`.
 
+Tests : `cargo test` (mise en forme, calcul des FPS, charge GPU). Le CI lance aussi
+`ci/smoke-test.ps1` sur un vrai Windows : démarrage, session ETW, instance unique, pause quand
+l'overlay est masqué, et fermeture sans session ETW laissée ouverte.
+
 ## Structure
 
 ```
 src/
-  main.rs          démarrage
+  main.rs          démarrage, instance unique, arrêt
   overlay.rs       fenêtre Win32, dessin GDI, raccourcis
   format.rs        mise en forme et couleurs des lignes
   metrics/
-    mod.rs         thread de collecte (1 fois par seconde)
+    mod.rs         thread de collecte (1 fois par seconde, en pause quand l'overlay est masqué)
     fps.rs         FPS via ETW
     gpu.rs         NVML ou compteurs génériques
     temps.rs       température CPU via WMI
     pdh.rs         compteurs de performance Windows
+ci/
+  smoke-test.ps1   test de fumée Windows (utilisé par le CI)
 ```

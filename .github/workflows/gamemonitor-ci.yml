@@ -36,6 +36,14 @@ jobs:
           rustup default stable
           rustc --version
 
+      - name: Clippy
+        run: |
+          rustup component add clippy
+          cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Tests unitaires
+        run: cargo test --locked
+
       - name: Build Release
         run: cargo build --release --locked
 

@@ -38,7 +38,8 @@ $HK_TOGGLE = 2
 
 function Get-Overlay([int] $processId) {
     $hwnd = [IntPtr]::Zero
-    while (($hwnd = [Smoke.Win32]::FindWindowExW([IntPtr]::Zero, $hwnd, 'GameMonitorOverlay', $null)) -ne [IntPtr]::Zero) {
+    # [NullString]::Value et non $null : PowerShell passerait "" (titre vide) à la place de NULL.
+    while (($hwnd = [Smoke.Win32]::FindWindowExW([IntPtr]::Zero, $hwnd, 'GameMonitorOverlay', [NullString]::Value)) -ne [IntPtr]::Zero) {
         [uint32] $owner = 0
         [void] [Smoke.Win32]::GetWindowThreadProcessId($hwnd, [ref] $owner)
         if ($owner -eq $processId) { return $hwnd }

@@ -12,7 +12,6 @@ use std::time::{Duration, Instant};
 
 use sysinfo::{Disks, Networks, Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
-use wmi::{Variant, WMIConnection};
 
 pub use fps::FpsInfo;
 pub use gpu::GpuInfo;
@@ -99,7 +98,7 @@ impl Worker {
     pub fn stop(self, timeout: Duration) {
         let _ = self.control.0.send(Command::Quit);
         let _ = self.done.recv_timeout(timeout);
-        // Filet de sécurité si le thread est bloqué (requête WMI qui ne répond pas, par exemple).
+        // Filet de sécurité si le thread est bloqué (pilote qui ne répond pas, par exemple).
         fps::stop_session();
     }
 }
@@ -189,20 +188,6 @@ const PDH_COUNTERS: &[(&str, &str)] = &[
     ("idle", r"\PhysicalDisk(_Total)\% Idle Time"),
 ];
 
-fn gpu_name_from_wmi() -> String {
-    WMIConnection::new()
-        .ok()
-        .and_then(|con| {
-            let rows: Vec<HashMap<String, Variant>> =
-                con.raw_query("SELECT Name FROM Win32_VideoController").ok()?;
-            rows.iter().find_map(|r| match r.get("Name") {
-                Some(Variant::String(s)) => Some(s.clone()),
-                _ => None,
-            })
-        })
-        .unwrap_or_else(|| "GPU".to_string())
-}
-
 fn foreground_pid() -> u32 {
     let mut pid = 0u32;
     unsafe {
@@ -231,7 +216,7 @@ impl Collector {
                 }
             }
         }
-        let gpu = gpu::Gpu::new(pdh.as_ref(), gpu_name_from_wmi());
+        let gpu = gpu::Gpu::new(pdh.as_ref());
 
         let mut collector = Self {
             sys,

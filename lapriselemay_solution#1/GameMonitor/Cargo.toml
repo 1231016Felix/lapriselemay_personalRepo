@@ -1,0 +1,32 @@
+[package]
+name = "game_monitor"
+version = "0.1.0"
+edition = "2024"
+description = "Overlay de monitoring natif et léger pour PC de jeu Windows"
+
+[[bin]]
+name = "GameMonitor"
+path = "src/main.rs"
+
+[dependencies]
+ferrisetw = "1.2.0"
+nvml-wrapper = "0.13.0"
+# Sans "multithread" : évite le pool de threads rayon, inutile ici.
+sysinfo = { version = "0.40.1", default-features = false, features = ["system", "network", "disk"] }
+wmi = "0.18.4"
+windows = { version = "0.62.2", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_HiDpi",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Performance",
+] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

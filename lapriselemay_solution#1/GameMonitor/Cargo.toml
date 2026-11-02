@@ -20,8 +20,10 @@ windows = { version = "0.62.2", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_HiDpi",
+    "Win32_Security",
     "Win32_System_LibraryLoader",
     "Win32_System_Performance",
+    "Win32_System_Threading",
 ] }
 
 [profile.release]

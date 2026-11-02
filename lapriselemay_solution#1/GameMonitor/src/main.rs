@@ -5,21 +5,37 @@ mod format;
 mod metrics;
 mod overlay;
 
-use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
+use windows::Win32::Foundation::{ERROR_ALREADY_EXISTS, GetLastError};
+use windows::Win32::System::Threading::CreateMutexW;
 use windows::Win32::UI::HiDpi::{
     DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext,
 };
+use windows::core::w;
+
+/// Vrai si GameMonitor tourne déjà dans cette session Windows.
+/// Le mutex reste ouvert jusqu'à la fin du processus : c'est lui qui marque l'instance.
+fn already_running() -> bool {
+    unsafe {
+        CreateMutexW(None, false, w!("Local\\GameMonitor")).is_ok()
+            && GetLastError() == ERROR_ALREADY_EXISTS
+    }
+}
 
 fn main() {
+    // Un second GameMonitor fermerait la session ETW du premier et ne pourrait pas
+    // enregistrer les raccourcis : il demande plutôt au premier de se réafficher.
+    if already_running() {
+        overlay::show_existing();
+        return;
+    }
     unsafe {
         let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     }
     let shared = Arc::new(Mutex::new(metrics::Snapshot::default()));
-    let active = Arc::new(AtomicBool::new(true));
-    let quit = Arc::new(AtomicBool::new(false));
-
-    metrics::spawn(shared.clone(), active.clone(), quit.clone());
-    overlay::run(shared, active, quit);
+    let worker = metrics::spawn(shared.clone());
+    overlay::run(shared, worker.control());
+    worker.stop(Duration::from_secs(2));
 }

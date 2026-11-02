@@ -75,10 +75,16 @@ fn load_color(pct: f64) -> COLORREF {
     }
 }
 
+/// Ligne d'avertissement quand Windows a refusé certains raccourcis (déjà pris ailleurs).
+pub fn hotkey_warning(keys: &str) -> Line {
+    Line::new("").add(format!("Raccourci indisponible : Ctrl+Maj+{keys}"), WARN)
+}
+
 pub fn build_lines(s: &Snapshot, detailed: bool, hint: bool) -> Vec<Line> {
     let mut lines = Vec::new();
     if !s.ready {
-        lines.push(Line::new("").add("GameMonitor : démarrage…", DIM));
+        // Au lancement, et à la réapparition après une pause : la première mesure prend 1 s.
+        lines.push(Line::new("").add("GameMonitor : mesure en cours…", DIM));
         return lines;
     }
 
@@ -169,7 +175,12 @@ pub fn build_lines(s: &Snapshot, detailed: bool, hint: bool) -> Vec<Line> {
     );
 
     if detailed {
-        lines.push(Line::new("").add(s.cpu_name.clone(), DIM));
+        // La zone ACPI est un capteur de carte mère, pas celui du CPU : on dit d'où vient la mesure.
+        let cpu = match s.cpu_temp_source {
+            "" => s.cpu_name.clone(),
+            source => format!("{} · temp. {source}", s.cpu_name),
+        };
+        lines.push(Line::new("").add(cpu, DIM));
         lines.push(Line::new("").add(g.name.clone(), DIM));
         if let Some(m) = g.mem_clock_mhz {
             lines.push(Line::new("GPU mém.").add(format!("{m} MHz"), VALUE));
@@ -214,4 +225,71 @@ pub fn build_lines(s: &Snapshot, detailed: bool, hint: bool) -> Vec<Line> {
         lines.push(Line::new("").add("Ctrl+Maj+F9 détails · F10 masquer · F11 coin · F12 quitter", DIM));
     }
     lines
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::metrics::FpsInfo;
+
+    fn text(line: &Line) -> String {
+        line.parts.iter().map(|(t, _)| t.as_str()).collect()
+    }
+
+    fn find<'a>(lines: &'a [Line], label: &str) -> &'a Line {
+        lines.iter().find(|l| l.label == label).expect(label)
+    }
+
+    #[test]
+    fn french_decimals_and_units() {
+        assert_eq!(dec(12.3456, 2), "12,35");
+        assert_eq!(bytes(999.0 * 1024.0), "999 Ko");
+        // Jamais « 1000 Ko » : on passe aux Mo dès 1000 Ko.
+        assert_eq!(bytes(1000.0 * 1024.0), "1,0 Mo");
+        assert_eq!(bytes(8.0 * 1024.0 * 1024.0 * 1024.0), "8,0 Go");
+        assert_eq!(rate(2.5 * 1024.0 * 1024.0), "2,5 Mo/s");
+    }
+
+    #[test]
+    fn waiting_for_the_first_measure() {
+        let lines = build_lines(&Snapshot::default(), true, true);
+        assert_eq!(lines.len(), 1);
+        assert!(text(&lines[0]).contains("mesure en cours"));
+    }
+
+    #[test]
+    fn fps_line() {
+        let mut s = Snapshot { ready: true, ..Default::default() };
+        assert_eq!(text(find(&build_lines(&s, false, false), "FPS")), "lancer en admin");
+
+        s.fps_available = true;
+        assert_eq!(text(find(&build_lines(&s, false, false), "FPS")), "–");
+
+        s.fps = Some(FpsInfo { fps: 143.6, frametime_ms: 6.96, worst_ms: 12.04 });
+        s.foreground = "Game".into();
+        assert_eq!(text(find(&build_lines(&s, false, false), "FPS")), "144  7,0 ms  pire 12,0 ms  Game");
+    }
+
+    #[test]
+    fn cpu_line_and_temperature_source() {
+        let mut s = Snapshot { ready: true, cpu_name: "Intel Core i5-14400F".into(), ..Default::default() };
+        s.cpu_usage = 42.4;
+        s.cpu_mhz = Some(4_650.0);
+        assert_eq!(text(find(&build_lines(&s, false, false), "CPU")), "42 %  4,65 GHz  temp. n/d");
+
+        s.cpu_temp = Some(61.6);
+        s.cpu_temp_source = "ACPI";
+        let lines = build_lines(&s, true, false);
+        assert_eq!(text(find(&lines, "CPU")), "42 %  4,65 GHz  62 °C");
+        assert!(lines.iter().any(|l| text(l) == "Intel Core i5-14400F · temp. ACPI"));
+    }
+
+    #[test]
+    fn hint_and_hotkey_warning() {
+        let s = Snapshot { ready: true, ..Default::default() };
+        let hint = |lines: &[Line]| lines.iter().any(|l| text(l).starts_with("Ctrl+Maj+F9"));
+        assert!(hint(&build_lines(&s, false, true)));
+        assert!(!hint(&build_lines(&s, false, false)));
+        assert_eq!(text(&hotkey_warning("F9 F12")), "Raccourci indisponible : Ctrl+Maj+F9 F12");
+    }
 }

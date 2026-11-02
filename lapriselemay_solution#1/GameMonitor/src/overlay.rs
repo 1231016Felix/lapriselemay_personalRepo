@@ -2,8 +2,6 @@
 //! les clics la traversent, et elle ne prend jamais le focus du jeu.
 
 use std::cell::RefCell;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use windows::Win32::Foundation::*;
@@ -12,29 +10,34 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::HiDpi::GetDpiForSystem;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
-use windows::core::w;
+use windows::core::{PCWSTR, w};
 
-use crate::format::{Line, build_lines};
-use crate::metrics::SharedSnapshot;
+use crate::format::{Line, build_lines, hotkey_warning};
+use crate::metrics::{self, Control, SharedSnapshot};
 
+const CLASS: PCWSTR = w!("GameMonitorOverlay");
 const HK_DETAILS: i32 = 1;
 const HK_TOGGLE: i32 = 2;
 const HK_CORNER: i32 = 3;
 const HK_QUIT: i32 = 4;
+/// Envoyé par un second lancement de GameMonitor : réafficher l'overlay.
+const WM_APP_SHOW: u32 = WM_APP + 1;
 const TIMER_ID: usize = 1;
+const HINT: Duration = Duration::from_secs(10);
 const BG: COLORREF = COLORREF(0x0014_1414);
 const OPACITY: u8 = 230;
 
 struct State {
     shared: SharedSnapshot,
-    active: Arc<AtomicBool>,
-    quit: Arc<AtomicBool>,
+    control: Control,
     font: HFONT,
     scale: f32,
     detailed: bool,
     visible: bool,
     corner: u8,
     hint_until: Instant,
+    /// Raccourcis que Windows a refusés (déjà pris par une autre application).
+    missing_hotkeys: String,
     lines: Vec<Line>,
     label_w: i32,
     line_h: i32,
@@ -57,14 +60,22 @@ fn text_width(hdc: HDC, s: &str) -> i32 {
     size.cx
 }
 
-pub fn run(shared: SharedSnapshot, active: Arc<AtomicBool>, quit: Arc<AtomicBool>) {
+/// Demande à l'overlay déjà lancé de se réafficher (et de rappeler les raccourcis).
+pub fn show_existing() {
+    unsafe {
+        if let Ok(hwnd) = FindWindowW(CLASS, PCWSTR::null()) {
+            let _ = PostMessageW(Some(hwnd), WM_APP_SHOW, WPARAM(0), LPARAM(0));
+        }
+    }
+}
+
+pub fn run(shared: SharedSnapshot, control: Control) {
     unsafe {
         let instance: HINSTANCE = GetModuleHandleW(None).unwrap_or_default().into();
-        let class = w!("GameMonitorOverlay");
         let wc = WNDCLASSW {
             lpfnWndProc: Some(wndproc),
             hInstance: instance,
-            lpszClassName: class,
+            lpszClassName: CLASS,
             hCursor: LoadCursorW(None, IDC_ARROW).unwrap_or_default(),
             ..Default::default()
         };
@@ -91,14 +102,14 @@ pub fn run(shared: SharedSnapshot, active: Arc<AtomicBool>, quit: Arc<AtomicBool
         STATE.with(|s| {
             *s.borrow_mut() = Some(State {
                 shared,
-                active,
-                quit,
+                control,
                 font,
                 scale,
                 detailed: false,
                 visible: true,
                 corner: 0,
-                hint_until: Instant::now() + Duration::from_secs(10),
+                hint_until: Instant::now() + HINT,
+                missing_hotkeys: String::new(),
                 lines: Vec::new(),
                 label_w: 0,
                 line_h: (19.0 * scale) as i32,
@@ -109,7 +120,7 @@ pub fn run(shared: SharedSnapshot, active: Arc<AtomicBool>, quit: Arc<AtomicBool
         let ex = WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
         let Ok(hwnd) = CreateWindowExW(
             ex,
-            class,
+            CLASS,
             w!("GameMonitor"),
             WS_POPUP,
             0,
@@ -126,10 +137,23 @@ pub fn run(shared: SharedSnapshot, active: Arc<AtomicBool>, quit: Arc<AtomicBool
         let _ = SetLayeredWindowAttributes(hwnd, COLORREF(0), OPACITY, LWA_ALPHA);
 
         let mods = MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT;
-        let _ = RegisterHotKey(Some(hwnd), HK_DETAILS, mods, VK_F9.0 as u32);
-        let _ = RegisterHotKey(Some(hwnd), HK_TOGGLE, mods, VK_F10.0 as u32);
-        let _ = RegisterHotKey(Some(hwnd), HK_CORNER, mods, VK_F11.0 as u32);
-        let _ = RegisterHotKey(Some(hwnd), HK_QUIT, mods, VK_F12.0 as u32);
+        let hotkeys = [
+            (HK_DETAILS, VK_F9, "F9"),
+            (HK_TOGGLE, VK_F10, "F10"),
+            (HK_CORNER, VK_F11, "F11"),
+            (HK_QUIT, VK_F12, "F12"),
+        ];
+        // Sans raccourci, l'overlay (qui laisse passer les clics) ne se piloterait plus : on le signale.
+        let missing: Vec<&str> = hotkeys
+            .iter()
+            .filter(|(id, key, _)| RegisterHotKey(Some(hwnd), *id, mods, u32::from(key.0)).is_err())
+            .map(|(_, _, name)| *name)
+            .collect();
+        STATE.with(|s| {
+            if let Some(st) = s.borrow_mut().as_mut() {
+                st.missing_hotkeys = missing.join(" ");
+            }
+        });
 
         refresh(hwnd);
         let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
@@ -155,6 +179,9 @@ fn refresh(hwnd: HWND) {
         let snap = st.shared.lock().map(|s| s.clone()).unwrap_or_default();
         let hint = Instant::now() < st.hint_until;
         st.lines = build_lines(&snap, st.detailed, hint);
+        if !st.missing_hotkeys.is_empty() {
+            st.lines.push(hotkey_warning(&st.missing_hotkeys));
+        }
 
         unsafe {
             let hdc = GetDC(Some(hwnd));
@@ -246,6 +273,22 @@ fn paint(hwnd: HWND) {
     });
 }
 
+fn set_visible(hwnd: HWND, st: &mut State, visible: bool) {
+    if st.visible == visible {
+        return;
+    }
+    st.visible = visible;
+    // Masqué : la collecte se met en pause (session ETW comprise) pour ne rien consommer.
+    if visible {
+        st.control.resume();
+    } else {
+        st.control.pause();
+    }
+    unsafe {
+        let _ = ShowWindow(hwnd, if visible { SW_SHOWNOACTIVATE } else { SW_HIDE });
+    }
+}
+
 fn on_hotkey(hwnd: HWND, id: i32) {
     let mut quit = false;
     STATE.with(|cell| {
@@ -254,12 +297,8 @@ fn on_hotkey(hwnd: HWND, id: i32) {
         match id {
             HK_DETAILS => st.detailed = !st.detailed,
             HK_TOGGLE => {
-                st.visible = !st.visible;
-                // Masqué : on met aussi la collecte en pause pour ne rien consommer.
-                st.active.store(st.visible, Ordering::Relaxed);
-                unsafe {
-                    let _ = ShowWindow(hwnd, if st.visible { SW_SHOWNOACTIVATE } else { SW_HIDE });
-                }
+                let visible = !st.visible;
+                set_visible(hwnd, st, visible);
             }
             HK_CORNER => st.corner = (st.corner + 1) % 4,
             HK_QUIT => quit = true,
@@ -290,12 +329,26 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             on_hotkey(hwnd, wparam.0 as i32);
             LRESULT(0)
         }
-        WM_DESTROY => {
+        WM_APP_SHOW => {
             STATE.with(|cell| {
-                if let Some(st) = cell.borrow().as_ref() {
-                    st.quit.store(true, Ordering::Relaxed);
+                if let Some(st) = cell.borrow_mut().as_mut() {
+                    set_visible(hwnd, st, true);
+                    st.hint_until = Instant::now() + HINT;
                 }
             });
+            refresh(hwnd);
+            LRESULT(0)
+        }
+        WM_ENDSESSION => {
+            // Fermeture de session ou arrêt de Windows : le processus sera tué juste après,
+            // sans repasser par main. On ferme la session ETW tout de suite.
+            if wparam.0 != 0 {
+                metrics::emergency_stop();
+            }
+            LRESULT(0)
+        }
+        WM_DESTROY => {
+            // main arrête ensuite proprement la collecte (et la session ETW).
             unsafe { PostQuitMessage(0) };
             LRESULT(0)
         }

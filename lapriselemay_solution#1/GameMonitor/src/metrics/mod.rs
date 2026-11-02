@@ -6,7 +6,7 @@ mod pdh;
 mod temps;
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -54,20 +54,111 @@ pub struct Snapshot {
 
 pub type SharedSnapshot = Arc<Mutex<Snapshot>>;
 
-/// Lance le thread de collecte. `active` à faux met la collecte en pause (overlay masqué).
-pub fn spawn(shared: SharedSnapshot, active: Arc<AtomicBool>, quit: Arc<AtomicBool>) {
+const PERIOD: Duration = Duration::from_secs(1);
+
+enum Command {
+    Pause,
+    Resume,
+    Quit,
+}
+
+/// Pause et reprise de la collecte, depuis l'overlay.
+#[derive(Clone)]
+pub struct Control(Sender<Command>);
+
+impl Control {
+    /// Overlay masqué : plus aucune mesure, session ETW comprise.
+    pub fn pause(&self) {
+        let _ = self.0.send(Command::Pause);
+    }
+
+    pub fn resume(&self) {
+        let _ = self.0.send(Command::Resume);
+    }
+}
+
+/// Le thread de collecte, à arrêter avec [`Worker::stop`] avant de quitter.
+pub struct Worker {
+    control: Control,
+    done: Receiver<()>,
+}
+
+impl Worker {
+    pub fn control(&self) -> Control {
+        self.control.clone()
+    }
+
+    /// Arrête la collecte et attend (au plus `timeout`) que le thread ait libéré ses ressources.
+    /// Indispensable : à la sortie du processus, les autres threads sont tués sans rien libérer,
+    /// et la session ETW resterait ouverte.
+    pub fn stop(self, timeout: Duration) {
+        let _ = self.control.0.send(Command::Quit);
+        let _ = self.done.recv_timeout(timeout);
+        // Filet de sécurité si le thread est bloqué (requête WMI qui ne répond pas, par exemple).
+        fps::stop_session();
+    }
+}
+
+/// À appeler quand Windows ferme la session : le processus sera tué sans repasser par `main`.
+pub fn emergency_stop() {
+    fps::stop_session();
+}
+
+/// Lance le thread de collecte.
+pub fn spawn(shared: SharedSnapshot) -> Worker {
+    let (control, commands) = mpsc::channel();
+    let (finished, done) = mpsc::channel();
     std::thread::spawn(move || {
-        let mut collector = Collector::new();
-        while !quit.load(Ordering::Relaxed) {
-            if active.load(Ordering::Relaxed) {
-                let snap = collector.collect();
-                if let Ok(mut s) = shared.lock() {
-                    *s = snap;
+        run(&shared, &commands);
+        let _ = finished.send(());
+    });
+    Worker { control: Control(control), done }
+}
+
+fn publish(shared: &SharedSnapshot, snap: Snapshot) {
+    if let Ok(mut s) = shared.lock() {
+        *s = snap;
+    }
+}
+
+fn run(shared: &SharedSnapshot, commands: &Receiver<Command>) {
+    let mut collector = Collector::new();
+    let mut paused = false;
+    let mut next = Instant::now() + PERIOD;
+    loop {
+        let command = if paused {
+            // En pause, le thread dort jusqu'à la prochaine commande : aucune consommation.
+            commands.recv().unwrap_or(Command::Quit)
+        } else {
+            match commands.recv_timeout(next.saturating_duration_since(Instant::now())) {
+                Ok(command) => command,
+                Err(RecvTimeoutError::Disconnected) => Command::Quit,
+                Err(RecvTimeoutError::Timeout) => {
+                    publish(shared, collector.collect());
+                    // Cadence régulière, mais au moins une demi-période entre deux mesures
+                    // si l'une a pris du retard (les débits seraient sinon calculés sur un instant).
+                    next = (next + PERIOD).max(Instant::now() + PERIOD / 2);
+                    continue;
                 }
             }
-            std::thread::sleep(Duration::from_secs(1));
+        };
+        match command {
+            Command::Quit => break,
+            Command::Pause if !paused => {
+                paused = true;
+                collector.pause();
+                // À la réapparition, on n'affichera pas des valeurs d'avant la pause.
+                publish(shared, Snapshot::default());
+            }
+            Command::Resume if paused => {
+                paused = false;
+                collector.resume();
+                next = Instant::now() + PERIOD;
+            }
+            Command::Pause | Command::Resume => {}
         }
-    });
+    }
+    // `collector` est libéré ici : session ETW fermée, requête PDH et NVML aussi.
 }
 
 struct Collector {
@@ -136,11 +227,8 @@ impl Collector {
             }
         }
         let gpu = gpu::Gpu::new(pdh.as_ref(), gpu_name_from_wmi());
-        if let Some(p) = &pdh {
-            p.collect(); // première mesure de référence pour les compteurs de débit
-        }
 
-        Self {
+        let mut collector = Self {
             sys,
             networks: Networks::new_with_refreshed_list().ok(),
             disks: Disks::new_with_refreshed_list().ok(),
@@ -153,7 +241,36 @@ impl Collector {
             fps: fps::FpsTracker::start(),
             self_pid: Pid::from_u32(std::process::id()),
             cpu_name,
+        };
+        collector.prime();
+        collector
+    }
+
+    /// Mesure de référence : la collecte suivante portera sur l'intervalle qui commence ici
+    /// (charge CPU, débits), et non sur toute la durée d'une pause.
+    fn prime(&mut self) {
+        self.sys.refresh_cpu_usage();
+        if let Some(nets) = &mut self.networks {
+            nets.refresh(true);
         }
+        if let Some(p) = &self.pdh {
+            p.collect();
+        }
+        self.sys.refresh_processes_specifics(
+            ProcessesToUpdate::Some(&[self.self_pid]),
+            true,
+            ProcessRefreshKind::nothing().with_cpu(),
+        );
+        self.last_tick = Instant::now();
+    }
+
+    fn pause(&mut self) {
+        self.fps.pause();
+    }
+
+    fn resume(&mut self) {
+        self.fps.resume();
+        self.prime();
     }
 
     fn counter(&self, key: &str) -> Option<f64> {

@@ -45,6 +45,9 @@ Avec plusieurs écrans, l'overlay se place dans le coin choisi de l'écran du je
 et le suit dans la seconde s'il change d'écran. Cliquer sur le bureau ou la barre des tâches ne le déplace pas.
 Sa taille suit la mise à l'échelle de chaque écran (100 %, 150 %…).
 
+Si les mesures cessent d'être mises à jour pendant plus de 5 s, l'overlay ne les fait pas passer
+pour actuelles : les valeurs passent en gris sous la ligne orange « Mesures figées depuis 12 s ».
+
 Pour le lancer à l'ouverture de session : Windows ne démarre pas depuis le dossier Démarrage une
 application qui demande les droits administrateur. Il faut une tâche du Planificateur de tâches,
 déclenchée « À l'ouverture de session », avec « Exécuter avec les autorisations maximales ».
@@ -60,6 +63,10 @@ Windows ne donne pas la température des cœurs du processeur sans pilote spéci
 
 Sinon, la ligne affiche « temp. n/d ». Le mode détaillé indique la source utilisée (LHM ou ACPI).
 La température du GPU NVIDIA, elle, fonctionne toujours.
+
+La température CPU est lue à part : si LibreHardwareMonitor ne répond plus, le reste de l'overlay
+continue d'être mis à jour et la température passe à « temp. n/d » au bout de 5 s,
+jusqu'à ce qu'il réponde de nouveau.
 
 ### Limites connues
 
@@ -85,9 +92,10 @@ donc l'exe n'a pas besoin du Visual C++ Redistributable.
 Pour tester sans la demande d'administrateur : `cargo run` (debug), ou définir `GAMEMONITOR_NO_ADMIN=1` avant
 `cargo build --release`.
 
-Tests : `cargo test` (mise en forme, calcul des FPS, charge GPU, placement de l'overlay). Le CI lance aussi
-`ci/smoke-test.ps1` sur un vrai Windows : démarrage, session ETW, placement dans les quatre coins, instance
-unique, pause quand l'overlay est masqué, et fermeture sans session ETW laissée ouverte.
+Tests : `cargo test` (mise en forme et mesures figées, calcul des FPS, charge GPU, température
+qui ne répond plus, placement de l'overlay). Le CI lance aussi `ci/smoke-test.ps1` sur un vrai
+Windows : démarrage, session ETW, placement dans les quatre coins, instance unique, pause quand
+l'overlay est masqué, et fermeture sans session ETW laissée ouverte.
 
 ## Structure
 
@@ -100,7 +108,7 @@ src/
     mod.rs         thread de collecte (1 fois par seconde, en pause quand l'overlay est masqué)
     fps.rs         FPS via ETW
     gpu.rs         NVML ou compteurs génériques
-    temps.rs       température CPU via WMI
+    temps.rs       température CPU via WMI, dans un thread à part
     pdh.rs         compteurs de performance Windows
 ci/
   smoke-test.ps1   test de fumée Windows (utilisé par le CI)

@@ -1,10 +1,16 @@
-//! Température CPU via WMI.
+//! Température CPU via WMI, lue dans un thread à part.
 //!
 //! Windows n'expose pas la température des cœurs sans pilote noyau. On essaie donc :
 //! 1. LibreHardwareMonitor s'il tourne (lecture précise, il publie ses capteurs dans WMI) ;
 //! 2. la zone thermique ACPI de la carte mère (admin requis, pas disponible partout).
+//!
+//! Une requête WMI attend la réponse du fournisseur sans limite de temps : si celui de
+//! LibreHardwareMonitor ne répond plus, elle ne revient pas. Les requêtes se font donc dans
+//! un thread à part, que la collecte n'attend qu'un court instant avant de reprendre
+//! la dernière valeur connue.
 
 use std::collections::HashMap;
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::{Duration, Instant};
 
 use wmi::{Variant, WMIConnection};
@@ -12,8 +18,90 @@ use wmi::{Variant, WMIConnection};
 type Row = HashMap<String, Variant>;
 
 const RETRY: Duration = Duration::from_secs(30);
+/// Attente maximale de la réponse, à chaque mesure. Une requête prend d'habitude quelques dizaines de ms.
+const WAIT: Duration = Duration::from_millis(250);
+/// Au-delà de cet âge, une température que WMI tarde à renouveler n'est plus affichée.
+const MAX_AGE: Duration = Duration::from_secs(5);
 
+/// Température (°C) et source, à l'heure de la lecture.
+#[derive(Clone, Copy)]
+struct Reading {
+    celsius: Option<f32>,
+    source: &'static str,
+    at: Instant,
+}
+
+/// Côté collecte : une demande de lecture à chaque mesure, et la dernière lecture reçue.
 pub struct Temps {
+    requests: Sender<()>,
+    readings: Receiver<Reading>,
+    /// Une demande est partie et sa réponse n'est pas encore arrivée.
+    pending: bool,
+    last: Option<Reading>,
+}
+
+impl Temps {
+    /// Lance le thread de lecture. Il dort entre deux demandes : rien n'est lu pendant une pause.
+    pub fn spawn() -> Self {
+        Self::start(|| {
+            let mut sources = Sources::new();
+            move || sources.cpu()
+        })
+    }
+
+    /// `reader` est appelé dans le thread de lecture, et la fonction qu'il renvoie à chaque demande :
+    /// les connexions WMI, qui ne sont pas `Send`, naissent ainsi dans le thread qui s'en sert.
+    fn start<F, R>(reader: F) -> Self
+    where
+        F: FnOnce() -> R + Send + 'static,
+        R: FnMut() -> (Option<f32>, &'static str),
+    {
+        let (requests, incoming) = mpsc::channel();
+        let (outgoing, readings) = mpsc::channel();
+        // Le thread s'arrête avec la collecte (`Temps` libéré), ou reste bloqué dans WMI jusqu'à
+        // la fin du processus sans retenir personne. S'il ne démarre pas, la température reste « n/d ».
+        let _ = std::thread::Builder::new().name("temperature".into()).spawn(move || {
+            let mut read = reader();
+            while incoming.recv().is_ok() {
+                let (celsius, source) = read();
+                if outgoing.send(Reading { celsius, source, at: Instant::now() }).is_err() {
+                    break;
+                }
+            }
+        });
+        Self { requests, readings, pending: false, last: None }
+    }
+
+    /// Renvoie (température °C, source). Si le thread de lecture tarde, la dernière valeur connue,
+    /// tant qu'elle n'a pas plus de [`MAX_AGE`].
+    pub fn cpu(&mut self) -> (Option<f32>, &'static str) {
+        let reading = if self.pending {
+            // Toujours pas de réponse à la demande précédente : le thread est lent ou bloqué.
+            // On ne l'attend plus, et on ne lui envoie rien d'autre en attendant.
+            self.readings.try_recv().ok()
+        } else if self.requests.send(()).is_ok() {
+            self.pending = true;
+            self.readings.recv_timeout(WAIT).ok()
+        } else {
+            None
+        };
+        if let Some(r) = reading {
+            self.pending = false;
+            self.last = Some(r);
+        }
+        self.current(Instant::now())
+    }
+
+    fn current(&self, now: Instant) -> (Option<f32>, &'static str) {
+        match self.last {
+            Some(r) if now.saturating_duration_since(r.at) <= MAX_AGE => (r.celsius, r.source),
+            _ => (None, ""),
+        }
+    }
+}
+
+/// Côté thread de lecture : les connexions WMI aux deux sources.
+struct Sources {
     lhm: Option<WMIConnection>,
     acpi: Option<WMIConnection>,
     next_retry: Instant,
@@ -36,11 +124,11 @@ fn as_str(v: Option<&Variant>) -> &str {
     }
 }
 
-impl Temps {
-    pub fn new() -> Self {
-        let mut t = Self { lhm: None, acpi: None, next_retry: Instant::now() };
-        t.connect();
-        t
+impl Sources {
+    fn new() -> Self {
+        let mut s = Self { lhm: None, acpi: None, next_retry: Instant::now() };
+        s.connect();
+        s
     }
 
     fn connect(&mut self) {
@@ -54,7 +142,7 @@ impl Temps {
     }
 
     /// Renvoie (température °C, source).
-    pub fn cpu(&mut self) -> (Option<f32>, &'static str) {
+    fn cpu(&mut self) -> (Option<f32>, &'static str) {
         // Réessai périodique même quand l'ACPI répond : LibreHardwareMonitor, plus précis,
         // a pu être lancé après GameMonitor (ou relancé après avoir été fermé).
         if (self.lhm.is_none() || self.acpi.is_none()) && Instant::now() >= self.next_retry {
@@ -113,5 +201,54 @@ impl Temps {
             .filter(|c| (1.0..125.0).contains(c))
             .reduce(f64::max)
             .map(|t| t as f32)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Appelle `cpu()` comme la collecte, une fois toutes les 10 ms, jusqu'à obtenir `expected`.
+    fn wait_for(temps: &mut Temps, expected: (Option<f32>, &str)) {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while temps.cpu() != expected {
+            assert!(Instant::now() < deadline, "toujours pas de lecture {expected:?}");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    #[test]
+    fn a_stuck_reader_does_not_hold_up_the_collection() {
+        // Lecture qui ne revient pas, comme une requête WMI dont le fournisseur ne répond plus.
+        let (unblock, blocked) = mpsc::channel::<()>();
+        let mut temps = Temps::start(move || {
+            move || {
+                let _ = blocked.recv();
+                (Some(55.0), "LHM")
+            }
+        });
+
+        // La collecte n'attend la réponse qu'une fois, et pas plus de WAIT…
+        let start = Instant::now();
+        assert_eq!(temps.cpu(), (None, ""));
+        assert!(start.elapsed() < 4 * WAIT, "{:?}", start.elapsed());
+        // … puis plus du tout tant que le thread est bloqué.
+        let start = Instant::now();
+        assert_eq!(temps.cpu(), (None, ""));
+        assert!(start.elapsed() < WAIT, "{:?}", start.elapsed());
+
+        // La réponse tardive est reprise dès qu'elle arrive.
+        unblock.send(()).unwrap();
+        wait_for(&mut temps, (Some(55.0), "LHM"));
+    }
+
+    #[test]
+    fn the_last_reading_is_kept_up_to_max_age() {
+        let mut temps = Temps::start(|| || (Some(61.0), "ACPI"));
+        wait_for(&mut temps, (Some(61.0), "ACPI"));
+        let at = temps.last.unwrap().at;
+        assert_eq!(temps.current(at + MAX_AGE), (Some(61.0), "ACPI"));
+        // Au-delà, une température qui ne se renouvelle plus n'est plus affichée.
+        assert_eq!(temps.current(at + MAX_AGE + Duration::from_millis(1)), (None, ""));
     }
 }

@@ -1,10 +1,11 @@
 //! GPU : NVML (fourni avec le pilote NVIDIA) si disponible,
-//! sinon compteurs Windows génériques (marche aussi pour Intel et AMD).
+//! sinon compteurs Windows génériques (marche aussi pour Intel et AMD) et nom donné par DXGI.
 
 use std::collections::HashMap;
 
 use nvml_wrapper::Nvml;
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
+use windows::Win32::Graphics::Dxgi::{CreateDXGIFactory1, DXGI_ADAPTER_FLAG_SOFTWARE, IDXGIFactory1};
 
 use super::pdh::{Counter, Pdh};
 
@@ -28,15 +29,31 @@ pub struct Gpu {
     dedicated: Option<Counter>,
 }
 
+/// Nom de la carte graphique de l'écran principal, d'après DXGI. Un appel local au pilote,
+/// qui revient tout de suite : contrairement à une requête WMI, il ne peut pas bloquer la collecte.
+fn adapter_name() -> Option<String> {
+    let factory: IDXGIFactory1 = unsafe { CreateDXGIFactory1() }.ok()?;
+    (0..)
+        .map_while(|i| unsafe { factory.EnumAdapters1(i) }.ok())
+        .filter_map(|adapter| unsafe { adapter.GetDesc1() }.ok())
+        // Le rendu logiciel de Windows (« Microsoft Basic Render Driver ») n'est pas une carte.
+        .find(|desc| desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE.0 as u32 == 0)
+        .map(|desc| {
+            let len = desc.Description.iter().position(|&c| c == 0).unwrap_or(desc.Description.len());
+            String::from_utf16_lossy(&desc.Description[..len])
+        })
+}
+
 impl Gpu {
-    pub fn new(pdh: Option<&Pdh>, fallback_name: String) -> Self {
+    pub fn new(pdh: Option<&Pdh>) -> Self {
         let nvml = Nvml::init()
             .ok()
             .filter(|n| n.device_count().map(|c| c > 0).unwrap_or(false));
         let name = nvml
             .as_ref()
             .and_then(|n| n.device_by_index(0).ok()?.name().ok())
-            .unwrap_or(fallback_name);
+            .or_else(adapter_name)
+            .unwrap_or_else(|| "GPU".to_string());
         // Les compteurs génériques ne servent que sans NVIDIA.
         let pdh = pdh.filter(|_| nvml.is_none());
         let engine = pdh.and_then(|p| p.add(r"\GPU Engine(*engtype_3D)\Utilization Percentage"));

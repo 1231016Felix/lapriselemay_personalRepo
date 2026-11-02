@@ -12,7 +12,6 @@ use std::time::{Duration, Instant};
 
 use sysinfo::{Disks, Networks, Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
-use wmi::{Variant, WMIConnection};
 
 pub use fps::FpsInfo;
 pub use gpu::GpuInfo;
@@ -26,7 +25,8 @@ pub struct Drive {
 
 #[derive(Clone, Default)]
 pub struct Snapshot {
-    pub ready: bool,
+    /// Heure de la mesure. `None` tant qu'il n'y en a pas : au lancement, et après une pause.
+    pub taken: Option<Instant>,
     pub cpu_name: String,
     pub cpu_usage: f32,
     pub cpu_cores: Vec<f32>,
@@ -94,7 +94,7 @@ impl Worker {
     pub fn stop(self, timeout: Duration) {
         let _ = self.control.0.send(Command::Quit);
         let _ = self.done.recv_timeout(timeout);
-        // Filet de sécurité si le thread est bloqué (requête WMI qui ne répond pas, par exemple).
+        // Filet de sécurité si le thread est bloqué (pilote qui ne répond pas, par exemple).
         fps::stop_session();
     }
 }
@@ -184,20 +184,6 @@ const PDH_COUNTERS: &[(&str, &str)] = &[
     ("idle", r"\PhysicalDisk(_Total)\% Idle Time"),
 ];
 
-fn gpu_name_from_wmi() -> String {
-    WMIConnection::new()
-        .ok()
-        .and_then(|con| {
-            let rows: Vec<HashMap<String, Variant>> =
-                con.raw_query("SELECT Name FROM Win32_VideoController").ok()?;
-            rows.iter().find_map(|r| match r.get("Name") {
-                Some(Variant::String(s)) => Some(s.clone()),
-                _ => None,
-            })
-        })
-        .unwrap_or_else(|| "GPU".to_string())
-}
-
 fn foreground_pid() -> u32 {
     let mut pid = 0u32;
     unsafe {
@@ -226,7 +212,7 @@ impl Collector {
                 }
             }
         }
-        let gpu = gpu::Gpu::new(pdh.as_ref(), gpu_name_from_wmi());
+        let gpu = gpu::Gpu::new(pdh.as_ref());
 
         let mut collector = Self {
             sys,
@@ -237,7 +223,7 @@ impl Collector {
             pdh,
             counters,
             gpu,
-            temps: temps::Temps::new(),
+            temps: temps::Temps::spawn(),
             fps: fps::FpsTracker::start(),
             self_pid: Pid::from_u32(std::process::id()),
             cpu_name,
@@ -278,8 +264,9 @@ impl Collector {
     }
 
     fn collect(&mut self) -> Snapshot {
-        let elapsed = self.last_tick.elapsed().as_secs_f64().max(0.001);
-        self.last_tick = Instant::now();
+        let now = Instant::now();
+        let elapsed = now.duration_since(self.last_tick).as_secs_f64().max(0.001);
+        self.last_tick = now;
 
         self.sys.refresh_cpu_usage();
         self.sys.refresh_memory();
@@ -288,7 +275,7 @@ impl Collector {
         }
 
         let mut s = Snapshot {
-            ready: true,
+            taken: Some(now),
             cpu_name: self.cpu_name.clone(),
             cpu_usage: self.sys.global_cpu_usage(),
             cpu_cores: self.sys.cpus().iter().map(|c| c.usage()).collect(),

@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use windows::Win32::Foundation::COLORREF;
 
-use crate::metrics::{MAX_AGE, Snapshot};
+use crate::metrics::Snapshot;
 
 const fn rgb(r: u8, g: u8, b: u8) -> COLORREF {
     COLORREF(r as u32 | (g as u32) << 8 | (b as u32) << 16)
@@ -92,20 +92,60 @@ pub fn hotkey_warning(keys: &str) -> Line {
     Line::new("").add(format!("Raccourci indisponible : Ctrl+Maj+{keys}"), WARN)
 }
 
-/// Ligne d'avertissement quand la dernière mesure date de plus de [`MAX_AGE`].
+/// Ligne d'avertissement quand la collecte ne publie plus de mesure (voir [`Freshness`]).
 fn frozen_warning(age: Duration) -> Line {
     Line::new("").add(format!("Mesures figées depuis {}", duration(age)), WARN)
 }
 
-/// Lignes de l'overlay pour la mesure `s`, affichée à l'heure `now`.
-pub fn build_lines(s: &Snapshot, now: Instant, detailed: bool, hint: bool) -> Vec<Line> {
+/// Secondes de l'overlay (une par tic de son minuteur) sans nouvelle mesure au-delà desquelles
+/// la mesure affichée est signalée comme figée.
+const FROZEN_AFTER: u32 = 5;
+
+/// Repère une collecte qui ne publie plus : la même mesure, seconde après seconde.
+///
+/// On compte les tics du minuteur de l'overlay plutôt que l'âge de la mesure : sous Windows,
+/// `Instant` avance aussi pendant la veille. Au réveil, la mesure d'avant la veille paraîtrait figée
+/// depuis des heures, le temps que la collecte en prenne une nouvelle. Le processus ne tournant pas
+/// pendant la veille, le réveil ne compte ici que pour un tic.
+#[derive(Default)]
+pub struct Freshness {
+    /// Heure de la dernière mesure vue.
+    seen: Option<Instant>,
+    /// Tics passés depuis sans nouvelle mesure.
+    unchanged: u32,
+}
+
+impl Freshness {
+    /// À chaque tic du minuteur (une fois par seconde, overlay masqué compris).
+    pub fn tick(&mut self, taken: Option<Instant>) {
+        if taken == self.seen {
+            self.unchanged = self.unchanged.saturating_add(1);
+        } else {
+            *self = Self { seen: taken, unchanged: 0 };
+        }
+    }
+
+    /// Âge de la mesure `taken` si elle est figée. Pas de mesure (lancement, reprise après une pause) :
+    /// rien de figé.
+    pub fn frozen(&self, taken: Option<Instant>, now: Instant) -> Option<Duration> {
+        match taken {
+            Some(t) if taken == self.seen && self.unchanged >= FROZEN_AFTER => {
+                Some(now.saturating_duration_since(t))
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Lignes de l'overlay pour la mesure `s`. `frozen` : son âge, si elle est figée (voir [`Freshness`]).
+pub fn build_lines(s: &Snapshot, frozen: Option<Duration>, detailed: bool, hint: bool) -> Vec<Line> {
     let mut lines = Vec::new();
-    let Some(taken) = s.taken else {
+    if s.taken.is_none() {
         // Au lancement, et à la réapparition après une pause : la première mesure prend 1 s.
         // Il n'y a encore rien de mesuré, donc rien de figé.
         lines.push(Line::new("").add("GameMonitor : mesure en cours…", DIM));
         return lines;
-    };
+    }
 
     // FPS du jeu au premier plan
     let mut fps = Line::new("FPS");
@@ -246,8 +286,7 @@ pub fn build_lines(s: &Snapshot, now: Instant, detailed: bool, hint: bool) -> Ve
 
     // Plus de nouvelle mesure alors que l'overlay est affiché : la collecte est bloquée.
     // Les valeurs passent en gris pour ne pas les faire passer pour actuelles, et on dit depuis quand.
-    let age = now.saturating_duration_since(taken);
-    if age > MAX_AGE {
+    if let Some(age) = frozen {
         for (_, color) in lines.iter_mut().flat_map(|l| &mut l.parts) {
             *color = DIM;
         }
@@ -274,9 +313,9 @@ mod tests {
         Snapshot { taken: Some(Instant::now()), ..Default::default() }
     }
 
-    /// Lignes affichées à l'instant même de la mesure.
+    /// Lignes d'une mesure qui n'est pas figée.
     fn fresh(s: &Snapshot, detailed: bool, hint: bool) -> Vec<Line> {
-        build_lines(s, s.taken.unwrap_or_else(Instant::now), detailed, hint)
+        build_lines(s, None, detailed, hint)
     }
 
     #[test]
@@ -292,7 +331,7 @@ mod tests {
     #[test]
     fn waiting_for_the_first_measure() {
         // Au lancement et après une pause, rien n'est encore mesuré : jamais signalé comme figé.
-        let lines = build_lines(&Snapshot::default(), Instant::now() + Duration::from_secs(60), true, true);
+        let lines = build_lines(&Snapshot::default(), Some(Duration::from_secs(60)), true, true);
         assert_eq!(lines.len(), 1);
         assert!(text(&lines[0]).contains("mesure en cours"));
     }
@@ -336,19 +375,65 @@ mod tests {
     #[test]
     fn frozen_measures_are_greyed_with_a_warning() {
         let s = Snapshot { cpu_usage: 95.0, cpu_temp: Some(88.0), ..measured() };
-        let taken = s.taken.unwrap();
 
-        // Jusqu'à MAX_AGE, la mesure est actuelle : pas d'avertissement, couleurs habituelles.
-        let lines = build_lines(&s, taken + MAX_AGE, false, false);
+        // Mesure actuelle : pas d'avertissement, couleurs habituelles.
+        let lines = fresh(&s, false, false);
         assert_eq!(lines[0].label, "FPS");
         assert!(find(&lines, "CPU").parts.iter().any(|(_, c)| *c == BAD));
 
-        // Au-delà : avertissement en tête, et toutes les valeurs en gris.
-        let lines = build_lines(&s, taken + Duration::from_secs(12), false, true);
+        // Figée : avertissement en tête, et toutes les valeurs en gris.
+        let lines = build_lines(&s, Some(Duration::from_secs(12)), false, true);
         assert_eq!(text(&lines[0]), "Mesures figées depuis 12 s");
         assert!(lines[0].parts.iter().all(|(_, c)| *c == WARN));
         assert_eq!(text(find(&lines, "CPU")), "95 %  88 °C");
         assert!(lines[1..].iter().flat_map(|l| &l.parts).all(|(_, c)| *c == DIM));
+    }
+
+    /// Instant `secs` secondes après `t0`.
+    fn at(t0: Instant, secs: f64) -> Instant {
+        t0 + Duration::from_secs_f64(secs)
+    }
+
+    #[test]
+    fn frozen_after_five_ticks_without_a_new_measure() {
+        let t0 = Instant::now();
+        let mut f = Freshness::default();
+        // Une mesure par seconde : jamais figée.
+        for i in 0..10 {
+            let taken = Some(at(t0, i as f64));
+            f.tick(taken);
+            assert_eq!(f.frozen(taken, at(t0, i as f64 + 0.5)), None);
+        }
+        // Plus rien après celle de 9 s : figée au cinquième tic sans nouvelle mesure.
+        let last = Some(at(t0, 9.0));
+        for i in 1..5 {
+            f.tick(last);
+            assert_eq!(f.frozen(last, at(t0, 9.5 + i as f64)), None);
+        }
+        f.tick(last);
+        assert_eq!(f.frozen(last, at(t0, 14.5)), Some(Duration::from_millis(5_500)));
+        // Une nouvelle mesure n'est pas figée, même avant le tic suivant.
+        assert_eq!(f.frozen(Some(at(t0, 15.0)), at(t0, 15.2)), None);
+    }
+
+    #[test]
+    fn waking_up_from_sleep_is_not_frozen() {
+        // Instant a avancé d'une heure pendant la veille, mais rien n'a tourné :
+        // un seul tic passe sans nouvelle mesure avant que la collecte reprenne.
+        let t0 = Instant::now();
+        let mut f = Freshness::default();
+        f.tick(Some(t0));
+        f.tick(Some(t0));
+        assert_eq!(f.frozen(Some(t0), at(t0, 3_600.0)), None);
+    }
+
+    #[test]
+    fn no_measure_is_never_frozen() {
+        let mut f = Freshness::default();
+        for _ in 0..60 {
+            f.tick(None);
+        }
+        assert_eq!(f.frozen(None, Instant::now()), None);
     }
 
     #[test]

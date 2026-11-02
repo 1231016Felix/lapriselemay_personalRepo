@@ -15,13 +15,13 @@ use std::time::{Duration, Instant};
 
 use wmi::{Variant, WMIConnection};
 
-use super::MAX_AGE;
-
 type Row = HashMap<String, Variant>;
 
 const RETRY: Duration = Duration::from_secs(30);
 /// Attente maximale de la réponse, à chaque mesure. Une requête prend d'habitude quelques dizaines de ms.
 const WAIT: Duration = Duration::from_millis(250);
+/// Au-delà de cet âge, une température que WMI tarde à renouveler n'est plus affichée.
+const MAX_AGE: Duration = Duration::from_secs(5);
 
 /// Température (°C) et source, à l'heure de la lecture.
 #[derive(Clone, Copy)]

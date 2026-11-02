@@ -56,10 +56,6 @@ pub type SharedSnapshot = Arc<Mutex<Snapshot>>;
 
 const PERIOD: Duration = Duration::from_secs(1);
 
-/// Au-delà de cet âge, une mesure n'est plus actuelle : l'overlay la signale comme figée,
-/// et une température que WMI tarde à renouveler n'est plus affichée.
-pub const MAX_AGE: Duration = Duration::from_secs(5);
-
 enum Command {
     Pause,
     Resume,

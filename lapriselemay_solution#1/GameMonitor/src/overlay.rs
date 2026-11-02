@@ -12,7 +12,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::{PCWSTR, w};
 
-use crate::format::{Line, build_lines, hotkey_warning};
+use crate::format::{Freshness, Line, build_lines, hotkey_warning};
 use crate::metrics::{self, Control, SharedSnapshot};
 
 const CLASS: PCWSTR = w!("GameMonitorOverlay");
@@ -38,6 +38,8 @@ struct State {
     hint_until: Instant,
     /// Raccourcis que Windows a refusés (déjà pris par une autre application).
     missing_hotkeys: String,
+    /// Mesures reçues de seconde en seconde, pour repérer une collecte bloquée.
+    freshness: Freshness,
     lines: Vec<Line>,
     label_w: i32,
     line_h: i32,
@@ -110,6 +112,7 @@ pub fn run(shared: SharedSnapshot, control: Control) {
                 corner: 0,
                 hint_until: Instant::now() + HINT,
                 missing_hotkeys: String::new(),
+                freshness: Freshness::default(),
                 lines: Vec::new(),
                 label_w: 0,
                 line_h: (19.0 * scale) as i32,
@@ -179,7 +182,8 @@ fn refresh(hwnd: HWND) {
         let snap = st.shared.lock().map(|s| s.clone()).unwrap_or_default();
         let now = Instant::now();
         // Masqué, l'overlay ne passe pas ici : une mesure figée n'est signalée que s'il est visible.
-        st.lines = build_lines(&snap, now, st.detailed, now < st.hint_until);
+        let frozen = st.freshness.frozen(snap.taken, now);
+        st.lines = build_lines(&snap, frozen, st.detailed, now < st.hint_until);
         if !st.missing_hotkeys.is_empty() {
             st.lines.push(hotkey_warning(&st.missing_hotkeys));
         }
@@ -274,6 +278,17 @@ fn paint(hwnd: HWND) {
     });
 }
 
+/// À chaque tic du minuteur, overlay masqué compris : note si la collecte a publié une nouvelle mesure.
+/// Réaffiché pendant que la collecte est bloquée, l'overlay le signale ainsi tout de suite.
+fn tick() {
+    STATE.with(|cell| {
+        if let Some(st) = cell.borrow_mut().as_mut() {
+            let taken = st.shared.lock().ok().and_then(|s| s.taken);
+            st.freshness.tick(taken);
+        }
+    });
+}
+
 fn set_visible(hwnd: HWND, st: &mut State, visible: bool) {
     if st.visible == visible {
         return;
@@ -318,6 +333,7 @@ fn on_hotkey(hwnd: HWND, id: i32) {
 unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match msg {
         WM_TIMER => {
+            tick();
             refresh(hwnd);
             LRESULT(0)
         }

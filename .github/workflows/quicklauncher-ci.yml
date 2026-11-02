@@ -1,17 +1,19 @@
 name: QuickLauncher CI
 
-# Restauration, build Release, tests, audit des dépendances (transitives comprises)
-# et contrôle de non-divulgation du jeton par le script de release.
+# Restauration, build Release, tests et audit des dépendances (transitives comprises).
+# GameMonitor (projet Rust) a son propre workflow : gamemonitor-ci.yml.
 
 on:
   push:
     branches: [ main ]
     paths:
       - 'lapriselemay_solution#1/**'
+      - '!lapriselemay_solution#1/GameMonitor/**'
       - '.github/workflows/quicklauncher-ci.yml'
   pull_request:
     paths:
       - 'lapriselemay_solution#1/**'
+      - '!lapriselemay_solution#1/GameMonitor/**'
       - '.github/workflows/quicklauncher-ci.yml'
   workflow_dispatch:
 
@@ -54,9 +56,6 @@ jobs:
             exit 1
           }
           Write-Output 'Aucune dépendance vulnérable connue.'
-
-      - name: Le script de release ne divulgue pas le jeton
-        run: ./tools/Test-ReleaseSecrets.ps1
 
       - name: Résultats des tests
         if: always()

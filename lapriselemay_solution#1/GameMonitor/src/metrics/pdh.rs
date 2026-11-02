@@ -6,6 +6,10 @@ use windows::core::PCWSTR;
 
 const PDH_MORE_DATA: u32 = 0x8000_07D2;
 
+/// Valeur décimale, sans le plafond à 100 que PDH applique par défaut aux pourcentages :
+/// « % Processor Performance » dépasse 100 en turbo (absent du crate windows).
+const FORMAT: PDH_FMT = PDH_FMT(PDH_FMT_DOUBLE.0 | 0x0000_8000 /* PDH_FMT_NOCAP100 */);
+
 pub struct Pdh {
     query: PDH_HQUERY,
 }
@@ -51,7 +55,7 @@ impl Counter {
     pub fn value(&self) -> Option<f64> {
         let mut value = PDH_FMT_COUNTERVALUE::default();
         let status =
-            unsafe { PdhGetFormattedCounterValue(self.0, PDH_FMT_DOUBLE, None, &mut value) };
+            unsafe { PdhGetFormattedCounterValue(self.0, FORMAT, None, &mut value) };
         if status == 0 && value.CStatus == 0 {
             Some(unsafe { value.Anonymous.doubleValue })
         } else {
@@ -64,7 +68,7 @@ impl Counter {
         let mut size = 0u32;
         let mut count = 0u32;
         let status = unsafe {
-            PdhGetFormattedCounterArrayW(self.0, PDH_FMT_DOUBLE, &mut size, &mut count, None)
+            PdhGetFormattedCounterArrayW(self.0, FORMAT, &mut size, &mut count, None)
         };
         if status != PDH_MORE_DATA || size == 0 {
             return Vec::new();
@@ -75,7 +79,7 @@ impl Counter {
         let status = unsafe {
             PdhGetFormattedCounterArrayW(
                 self.0,
-                PDH_FMT_DOUBLE,
+                FORMAT,
                 &mut size,
                 &mut count,
                 Some(items),

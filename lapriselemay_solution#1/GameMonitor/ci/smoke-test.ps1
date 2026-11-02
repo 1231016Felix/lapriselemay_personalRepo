@@ -29,10 +29,6 @@ public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
 public static extern bool PostMessageW(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
 [DllImport("user32.dll")]
 public static extern int GetSystemMetrics(int index);
-[DllImport("user32.dll")]
-public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
-[StructLayout(LayoutKind.Sequential)]
-public struct RECT { public int Left, Top, Right, Bottom; }
 '@
 
 $WM_CLOSE = 0x0010
@@ -63,7 +59,7 @@ function Test-EtwSession {
     return $LASTEXITCODE -eq 0
 }
 
-function Save-Screen([string] $name, [int] $processId) {
+function Save-Screen([string] $name) {
     if (-not $Screenshot) { return }
     try {
         Add-Type -AssemblyName System.Drawing
@@ -73,25 +69,6 @@ function Save-Screen([string] $name, [int] $processId) {
         $g.Dispose()
         $null = New-Item -ItemType Directory -Force -Path $Screenshot
         $bmp.Save((Join-Path $Screenshot "$name.png"), [System.Drawing.Imaging.ImageFormat]::Png)
-
-        # L'overlay seul, aussi dans le journal en base64 (visible sans télécharger l'artefact).
-        $hwnd = Get-Overlay $processId
-        $rect = [Smoke.Win32+RECT]::new()
-        if ($hwnd -ne [IntPtr]::Zero -and [Smoke.Win32]::GetWindowRect($hwnd, [ref] $rect)) {
-            $area = [System.Drawing.Rectangle]::Intersect(
-                [System.Drawing.Rectangle]::FromLTRB($rect.Left, $rect.Top, $rect.Right, $rect.Bottom),
-                [System.Drawing.Rectangle]::new(0, 0, $bmp.Width, $bmp.Height))
-            $crop = $bmp.Clone($area, $bmp.PixelFormat)
-            $stream = [System.IO.MemoryStream]::new()
-            $crop.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
-            $crop.Dispose()
-            $base64 = [Convert]::ToBase64String($stream.ToArray())
-            Write-Host "::group::Capture $name ($($area.Width) x $($area.Height) px, PNG en base64)"
-            for ($i = 0; $i -lt $base64.Length; $i += 4000) {
-                Write-Host $base64.Substring($i, [Math]::Min(4000, $base64.Length - $i))
-            }
-            Write-Host '::endgroup::'
-        }
         $bmp.Dispose()
     } catch {
         Write-Host "::warning::Capture d'écran impossible : $_"
@@ -125,11 +102,11 @@ function Invoke-Scenario([string] $path) {
     }
     if ((Get-Overlay $first.Id) -eq [IntPtr]::Zero) { Fail 'fenêtre de l''overlay introuvable' }
     if (-not (Test-EtwSession)) { Fail "session ETW « $Session » absente pendant l'exécution" }
-    Save-Screen 'overlay-compact' $first.Id
+    Save-Screen 'overlay-compact'
 
     $null = Send-Overlay $first.Id $WM_HOTKEY $HK_DETAILS
     Start-Sleep -Milliseconds 1500
-    Save-Screen 'overlay-details' $first.Id
+    Save-Screen 'overlay-details'
     $null = Send-Overlay $first.Id $WM_HOTKEY $HK_DETAILS
 
     # 2. Un second lancement ne doit pas créer une seconde instance

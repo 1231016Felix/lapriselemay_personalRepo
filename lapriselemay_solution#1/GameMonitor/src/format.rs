@@ -1,8 +1,10 @@
 //! Transforme les mesures en lignes de texte colorées pour l'overlay.
 
+use std::time::{Duration, Instant};
+
 use windows::Win32::Foundation::COLORREF;
 
-use crate::metrics::Snapshot;
+use crate::metrics::{MAX_AGE, Snapshot};
 
 const fn rgb(r: u8, g: u8, b: u8) -> COLORREF {
     COLORREF(r as u32 | (g as u32) << 8 | (b as u32) << 16)
@@ -55,6 +57,16 @@ fn rate(b: f64) -> String {
     format!("{}/s", bytes(b))
 }
 
+/// Durée : « 12 s », « 2 min 05 s », « 1 h 05 ».
+fn duration(d: Duration) -> String {
+    let secs = d.as_secs();
+    match secs {
+        0..60 => format!("{secs} s"),
+        60..3600 => format!("{} min {:02} s", secs / 60, secs % 60),
+        _ => format!("{} h {:02}", secs / 3600, secs / 60 % 60),
+    }
+}
+
 fn temp_color(t: f32) -> COLORREF {
     if t < 70.0 {
         GOOD
@@ -80,13 +92,20 @@ pub fn hotkey_warning(keys: &str) -> Line {
     Line::new("").add(format!("Raccourci indisponible : Ctrl+Maj+{keys}"), WARN)
 }
 
-pub fn build_lines(s: &Snapshot, detailed: bool, hint: bool) -> Vec<Line> {
+/// Ligne d'avertissement quand la dernière mesure date de plus de [`MAX_AGE`].
+fn frozen_warning(age: Duration) -> Line {
+    Line::new("").add(format!("Mesures figées depuis {}", duration(age)), WARN)
+}
+
+/// Lignes de l'overlay pour la mesure `s`, affichée à l'heure `now`.
+pub fn build_lines(s: &Snapshot, now: Instant, detailed: bool, hint: bool) -> Vec<Line> {
     let mut lines = Vec::new();
-    if !s.ready {
+    let Some(taken) = s.taken else {
         // Au lancement, et à la réapparition après une pause : la première mesure prend 1 s.
+        // Il n'y a encore rien de mesuré, donc rien de figé.
         lines.push(Line::new("").add("GameMonitor : mesure en cours…", DIM));
         return lines;
-    }
+    };
 
     // FPS du jeu au premier plan
     let mut fps = Line::new("FPS");
@@ -224,6 +243,16 @@ pub fn build_lines(s: &Snapshot, detailed: bool, hint: bool) -> Vec<Line> {
     if hint || detailed {
         lines.push(Line::new("").add("Ctrl+Maj+F9 détails · F10 masquer · F11 coin · F12 quitter", DIM));
     }
+
+    // Plus de nouvelle mesure alors que l'overlay est affiché : la collecte est bloquée.
+    // Les valeurs passent en gris pour ne pas les faire passer pour actuelles, et on dit depuis quand.
+    let age = now.saturating_duration_since(taken);
+    if age > MAX_AGE {
+        for (_, color) in lines.iter_mut().flat_map(|l| &mut l.parts) {
+            *color = DIM;
+        }
+        lines.insert(0, frozen_warning(age));
+    }
     lines
 }
 
@@ -240,6 +269,16 @@ mod tests {
         lines.iter().find(|l| l.label == label).expect(label)
     }
 
+    /// Une mesure qui vient d'être prise.
+    fn measured() -> Snapshot {
+        Snapshot { taken: Some(Instant::now()), ..Default::default() }
+    }
+
+    /// Lignes affichées à l'instant même de la mesure.
+    fn fresh(s: &Snapshot, detailed: bool, hint: bool) -> Vec<Line> {
+        build_lines(s, s.taken.unwrap_or_else(Instant::now), detailed, hint)
+    }
+
     #[test]
     fn french_decimals_and_units() {
         assert_eq!(dec(12.3456, 2), "12,35");
@@ -252,44 +291,70 @@ mod tests {
 
     #[test]
     fn waiting_for_the_first_measure() {
-        let lines = build_lines(&Snapshot::default(), true, true);
+        // Au lancement et après une pause, rien n'est encore mesuré : jamais signalé comme figé.
+        let lines = build_lines(&Snapshot::default(), Instant::now() + Duration::from_secs(60), true, true);
         assert_eq!(lines.len(), 1);
         assert!(text(&lines[0]).contains("mesure en cours"));
     }
 
     #[test]
     fn fps_line() {
-        let mut s = Snapshot { ready: true, ..Default::default() };
-        assert_eq!(text(find(&build_lines(&s, false, false), "FPS")), "lancer en admin");
+        let mut s = measured();
+        assert_eq!(text(find(&fresh(&s, false, false), "FPS")), "lancer en admin");
 
         s.fps_available = true;
-        assert_eq!(text(find(&build_lines(&s, false, false), "FPS")), "–");
+        assert_eq!(text(find(&fresh(&s, false, false), "FPS")), "–");
 
         s.fps = Some(FpsInfo { fps: 143.6, frametime_ms: 6.96, worst_ms: 12.04 });
         s.foreground = "Game".into();
-        assert_eq!(text(find(&build_lines(&s, false, false), "FPS")), "144  7,0 ms  pire 12,0 ms  Game");
+        assert_eq!(text(find(&fresh(&s, false, false), "FPS")), "144  7,0 ms  pire 12,0 ms  Game");
     }
 
     #[test]
     fn cpu_line_and_temperature_source() {
-        let mut s = Snapshot { ready: true, cpu_name: "Intel Core i5-14400F".into(), ..Default::default() };
+        let mut s = Snapshot { cpu_name: "Intel Core i5-14400F".into(), ..measured() };
         s.cpu_usage = 42.4;
         s.cpu_mhz = Some(4_650.0);
-        assert_eq!(text(find(&build_lines(&s, false, false), "CPU")), "42 %  4,65 GHz  temp. n/d");
+        assert_eq!(text(find(&fresh(&s, false, false), "CPU")), "42 %  4,65 GHz  temp. n/d");
 
         s.cpu_temp = Some(61.6);
         s.cpu_temp_source = "ACPI";
-        let lines = build_lines(&s, true, false);
+        let lines = fresh(&s, true, false);
         assert_eq!(text(find(&lines, "CPU")), "42 %  4,65 GHz  62 °C");
         assert!(lines.iter().any(|l| text(l) == "Intel Core i5-14400F · temp. ACPI"));
     }
 
     #[test]
     fn hint_and_hotkey_warning() {
-        let s = Snapshot { ready: true, ..Default::default() };
+        let s = measured();
         let hint = |lines: &[Line]| lines.iter().any(|l| text(l).starts_with("Ctrl+Maj+F9"));
-        assert!(hint(&build_lines(&s, false, true)));
-        assert!(!hint(&build_lines(&s, false, false)));
+        assert!(hint(&fresh(&s, false, true)));
+        assert!(!hint(&fresh(&s, false, false)));
         assert_eq!(text(&hotkey_warning("F9 F12")), "Raccourci indisponible : Ctrl+Maj+F9 F12");
+    }
+
+    #[test]
+    fn frozen_measures_are_greyed_with_a_warning() {
+        let s = Snapshot { cpu_usage: 95.0, cpu_temp: Some(88.0), ..measured() };
+        let taken = s.taken.unwrap();
+
+        // Jusqu'à MAX_AGE, la mesure est actuelle : pas d'avertissement, couleurs habituelles.
+        let lines = build_lines(&s, taken + MAX_AGE, false, false);
+        assert_eq!(lines[0].label, "FPS");
+        assert!(find(&lines, "CPU").parts.iter().any(|(_, c)| *c == BAD));
+
+        // Au-delà : avertissement en tête, et toutes les valeurs en gris.
+        let lines = build_lines(&s, taken + Duration::from_secs(12), false, true);
+        assert_eq!(text(&lines[0]), "Mesures figées depuis 12 s");
+        assert!(lines[0].parts.iter().all(|(_, c)| *c == WARN));
+        assert_eq!(text(find(&lines, "CPU")), "95 %  88 °C");
+        assert!(lines[1..].iter().flat_map(|l| &l.parts).all(|(_, c)| *c == DIM));
+    }
+
+    #[test]
+    fn frozen_warning_duration() {
+        assert_eq!(text(&frozen_warning(Duration::from_millis(12_900))), "Mesures figées depuis 12 s");
+        assert_eq!(text(&frozen_warning(Duration::from_secs(125))), "Mesures figées depuis 2 min 05 s");
+        assert_eq!(text(&frozen_warning(Duration::from_secs(3_900))), "Mesures figées depuis 1 h 05");
     }
 }

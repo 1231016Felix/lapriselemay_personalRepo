@@ -177,8 +177,9 @@ fn refresh(hwnd: HWND) {
             return;
         }
         let snap = st.shared.lock().map(|s| s.clone()).unwrap_or_default();
-        let hint = Instant::now() < st.hint_until;
-        st.lines = build_lines(&snap, st.detailed, hint);
+        let now = Instant::now();
+        // Masqué, l'overlay ne passe pas ici : une mesure figée n'est signalée que s'il est visible.
+        st.lines = build_lines(&snap, now, st.detailed, now < st.hint_until);
         if !st.missing_hotkeys.is_empty() {
             st.lines.push(hotkey_warning(&st.missing_hotkeys));
         }

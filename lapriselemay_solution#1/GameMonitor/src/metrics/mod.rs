@@ -26,7 +26,8 @@ pub struct Drive {
 
 #[derive(Clone, Default)]
 pub struct Snapshot {
-    pub ready: bool,
+    /// Heure de la mesure. `None` tant qu'il n'y en a pas : au lancement, et après une pause.
+    pub taken: Option<Instant>,
     pub cpu_name: String,
     pub cpu_usage: f32,
     pub cpu_cores: Vec<f32>,
@@ -55,6 +56,10 @@ pub struct Snapshot {
 pub type SharedSnapshot = Arc<Mutex<Snapshot>>;
 
 const PERIOD: Duration = Duration::from_secs(1);
+
+/// Au-delà de cet âge, une mesure n'est plus actuelle : l'overlay la signale comme figée,
+/// et une température que WMI tarde à renouveler n'est plus affichée.
+pub const MAX_AGE: Duration = Duration::from_secs(5);
 
 enum Command {
     Pause,
@@ -237,7 +242,7 @@ impl Collector {
             pdh,
             counters,
             gpu,
-            temps: temps::Temps::new(),
+            temps: temps::Temps::spawn(),
             fps: fps::FpsTracker::start(),
             self_pid: Pid::from_u32(std::process::id()),
             cpu_name,
@@ -278,8 +283,9 @@ impl Collector {
     }
 
     fn collect(&mut self) -> Snapshot {
-        let elapsed = self.last_tick.elapsed().as_secs_f64().max(0.001);
-        self.last_tick = Instant::now();
+        let now = Instant::now();
+        let elapsed = now.duration_since(self.last_tick).as_secs_f64().max(0.001);
+        self.last_tick = now;
 
         self.sys.refresh_cpu_usage();
         self.sys.refresh_memory();
@@ -288,7 +294,7 @@ impl Collector {
         }
 
         let mut s = Snapshot {
-            ready: true,
+            taken: Some(now),
             cpu_name: self.cpu_name.clone(),
             cpu_usage: self.sys.global_cpu_usage(),
             cpu_cores: self.sys.cpus().iter().map(|c| c.usage()).collect(),

@@ -63,6 +63,8 @@ Installée via le Setup, l'application vérifie les Releases GitHub au démarrag
 ### Démarrage automatique avec Windows
 Par défaut, QuickLauncher est configuré pour démarrer avec Windows. Vous pouvez désactiver cette option dans les paramètres.
 
+Seule une copie installée (Setup) ou portable s'inscrit au démarrage de Windows. Un exécutable compilé depuis les sources (`bin\Debug`, `bin\Release`) n'y inscrit jamais son propre chemin, pour ne pas prendre la place de la version installée ni verrouiller la sortie du build suivant. S'il y trouve son propre chemin (laissé par une ancienne version), il rend l'inscription à la version installée. Décocher l'option la retire depuis n'importe quelle copie.
+
 ---
 
 ## Utilisation de base

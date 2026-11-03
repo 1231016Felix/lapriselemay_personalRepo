@@ -10,6 +10,12 @@ public static class Constants
     
     /// <summary>Repo GitHub servant de source pour les mises à jour automatiques (Velopack).</summary>
     public const string UpdateRepositoryUrl = "https://github.com/1231016Felix/lapriselemay_personalRepo";
+
+    /// <summary>
+    /// Identifiant du paquet Velopack : doit rester égal à $PackId de Release/release.ps1
+    /// (qui ne change jamais). Le Setup installe l'app dans %LocalAppData%\{packId}\current.
+    /// </summary>
+    public const string VelopackPackId = "LapriseLemay.QuickLauncher";
     
     // Chemins relatifs
     public const string SettingsFileName = "settings.json";

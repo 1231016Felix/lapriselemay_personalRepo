@@ -93,8 +93,11 @@ public partial class App : Application
             themeService.ApplyTheme(settings.Appearance.Theme);
             themeService.ApplyAccentColor(settings.Appearance.AccentColor);
             
+            // Seule une copie Velopack (installée ou portable) s'inscrit au démarrage de
+            // Windows : un build de dev qui y inscrirait bin\Release serait relancé à
+            // chaque session et verrouillerait la sortie du build suivant.
             _logger.Info("Synchronisation registre démarrage...");
-            SettingsWindow.SyncStartupRegistry();
+            StartupRegistration.Apply(settings.StartWithWindows, Services.GetRequiredService<UpdateService>().IsInstalled);
             
             _logger.Info("Restauration des widgets de notes et minuteries...");
             var noteWidgetService = Services.GetRequiredService<NoteWidgetService>();
@@ -437,7 +440,8 @@ public partial class App : Application
             var universalSearchService = Services.GetRequiredService<UniversalSearchService>();
             
             var bookmarkService = Services.GetRequiredService<IBookmarkService>();
-            var settingsWindow = new SettingsWindow(indexingService, settingsProvider, themeService, universalSearchService, bookmarkService);
+            var updateService = Services.GetRequiredService<UpdateService>();
+            var settingsWindow = new SettingsWindow(indexingService, settingsProvider, themeService, universalSearchService, bookmarkService, updateService);
             settingsWindow.ShowDialog();
             
             // Les paramètres sont déjà sauvegardés via le provider, mais on force un reload

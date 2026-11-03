@@ -1,5 +1,4 @@
-﻿using Microsoft.Win32;
-using QuickLauncher.Models;
+﻿using QuickLauncher.Models;
 using QuickLauncher.Services;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -37,8 +36,11 @@ public partial class SettingsWindow : Window
     private readonly IBookmarkService _bookmarkService;
     private readonly WebIntegrationService _webService = new();
     
-    private const string StartupRegistryKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
-    private const string AppName = "QuickLauncher";
+    /// <summary>
+    /// Vrai si l'app tourne depuis une copie Velopack (installée ou portable) : seule
+    /// une telle copie s'inscrit elle-même au démarrage de Windows (voir <see cref="StartupRegistration"/>).
+    /// </summary>
+    private readonly bool _isVelopackCopy;
     
     // Valeurs initiales du raccourci pour détecter les changements
     private bool _initialHotkeyAlt;
@@ -55,7 +57,7 @@ public partial class SettingsWindow : Window
 
     public SettingsWindow(IndexingService? indexingService = null, ISettingsProvider? settingsProvider = null,
         ThemeService? themeService = null, UniversalSearchService? universalSearchService = null,
-        IBookmarkService? bookmarkService = null)
+        IBookmarkService? bookmarkService = null, UpdateService? updateService = null)
     {
         InitializeComponent();
         
@@ -68,7 +70,11 @@ public partial class SettingsWindow : Window
         _themeService = themeService;
         _universalSearchService = universalSearchService;
         _bookmarkService = bookmarkService ?? new BookmarkService();
-        
+
+        // Sans UpdateService (fenêtre créée hors DI), on se comporte comme un build
+        // de dev : cette copie ne s'inscrit jamais elle-même au démarrage.
+        _isVelopackCopy = updateService?.IsInstalled ?? false;
+
         // Initialiser le timer pour le feedback de sauvegarde
         _saveIndicatorTimer = new DispatcherTimer
         {
@@ -1434,92 +1440,13 @@ public partial class SettingsWindow : Window
     private static string? GetComboTag(ComboBox combo) => 
         (combo.SelectedItem as ComboBoxItem)?.Tag?.ToString();
 
+    /// <summary>
+    /// Applique « Démarrer avec Windows » à la clé de démarrage. Un build de dev n'y
+    /// inscrit jamais son propre chemin (voir <see cref="StartupRegistration"/>).
+    /// </summary>
     private void UpdateStartupRegistry()
     {
-        try
-        {
-            using var key = Registry.CurrentUser.OpenSubKey(StartupRegistryKey, true);
-            if (key == null) return;
-
-            if (_settings.StartWithWindows)
-            {
-                var exePath = GetApplicationExecutablePath();
-                if (!string.IsNullOrEmpty(exePath))
-                    key.SetValue(AppName, $"\"{exePath}\"");
-            }
-            else
-            {
-                key.DeleteValue(AppName, false);
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[Startup] ERREUR: {ex.Message}");
-        }
-    }
-
-    private static string? GetApplicationExecutablePath()
-    {
-        var processPath = Environment.ProcessPath;
-        if (!string.IsNullOrEmpty(processPath) && 
-            processPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
-            !processPath.Contains("dotnet", StringComparison.OrdinalIgnoreCase))
-        {
-            return processPath;
-        }
-
-        var assemblyLocation = System.Reflection.Assembly.GetEntryAssembly()?.Location;
-        if (!string.IsNullOrEmpty(assemblyLocation))
-        {
-            var directory = Path.GetDirectoryName(assemblyLocation);
-            if (directory != null)
-            {
-                var exePath = Path.Combine(directory, $"{AppName}.exe");
-                if (File.Exists(exePath))
-                    return exePath;
-            }
-        }
-
-        var mainModule = Process.GetCurrentProcess().MainModule?.FileName;
-        if (!string.IsNullOrEmpty(mainModule) && 
-            mainModule.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
-            !mainModule.Contains("dotnet", StringComparison.OrdinalIgnoreCase))
-        {
-            return mainModule;
-        }
-
-        return null;
-    }
-
-    public static void SyncStartupRegistry()
-    {
-        try
-        {
-            var settings = AppSettings.Load();
-            using var key = Registry.CurrentUser.OpenSubKey(StartupRegistryKey, true);
-            if (key == null) return;
-
-            var currentValue = key.GetValue(AppName) as string;
-            var expectedPath = GetApplicationExecutablePath();
-
-            if (settings.StartWithWindows)
-            {
-                if (!string.IsNullOrEmpty(expectedPath))
-                {
-                    var expectedValue = $"\"{expectedPath}\"";
-                    if (currentValue != expectedValue)
-                        key.SetValue(AppName, expectedValue);
-                }
-            }
-            else if (currentValue != null)
-            {
-                key.DeleteValue(AppName, false);
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[Startup] ERREUR sync: {ex.Message}");
-        }
+        StartupRegistration.Apply(_settings.StartWithWindows, _isVelopackCopy);
     }
     
     /// <summary>

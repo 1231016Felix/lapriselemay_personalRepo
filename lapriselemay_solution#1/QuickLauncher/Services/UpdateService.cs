@@ -9,9 +9,10 @@ namespace QuickLauncher.Services;
 /// GitHub Releases du dépôt comme source de distribution.
 ///
 /// L'app n'est « installée » que lorsqu'elle est lancée depuis le dossier
-/// Velopack (%LocalAppData%\QuickLauncher). En développement (F5 dans Visual
-/// Studio), <see cref="UpdateManager.IsInstalled"/> vaut false et toutes les
-/// opérations sont ignorées silencieusement.
+/// Velopack (%LocalAppData%\LapriseLemay.QuickLauncher), ou depuis une copie
+/// portable. En développement (F5 dans Visual Studio),
+/// <see cref="UpdateManager.IsInstalled"/> vaut false et toutes les opérations
+/// sont ignorées silencieusement.
 /// </summary>
 public sealed class UpdateService
 {

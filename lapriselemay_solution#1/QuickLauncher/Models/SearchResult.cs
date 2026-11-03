@@ -65,6 +65,13 @@ public sealed class SearchResult : INotifyPropertyChanged
     public string Path { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public ResultType Type { get; set; }
+
+    /// <summary>
+    /// Entrée découverte dans shell:AppsFolder, y compris les applications Win32.
+    /// Leur chemin peut être un .exe ou un AppUserModelId : le type seul ne suffit
+    /// pas à les distinguer des exécutables trouvés dans les dossiers de l'utilisateur.
+    /// </summary>
+    public bool IsFromAppsFolder { get; set; }
     
     /// <summary>
     /// Si true, masque l'icône et le badge de catégorie (bloc info unifié, ex: météo).
@@ -129,6 +136,7 @@ public sealed class SearchResult : INotifyPropertyChanged
             Path = Path,
             Description = Description,
             Type = Type,
+            IsFromAppsFolder = IsFromAppsFolder,
             IsInfoBlock = IsInfoBlock,
             Score = Score,
             LastUsed = LastUsed,

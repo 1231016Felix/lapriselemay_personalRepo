@@ -106,6 +106,7 @@ public sealed partial class IndexingService : IDisposable
             Name TEXT NOT NULL COLLATE NOCASE,
             Description TEXT,
             Type INTEGER NOT NULL,
+            IsFromAppsFolder INTEGER NOT NULL DEFAULT 0,
             LastUsed TEXT,
             UseCount INTEGER DEFAULT 0,
             IndexedAt TEXT NOT NULL
@@ -121,12 +122,13 @@ public sealed partial class IndexingService : IDisposable
     /// à NULL à chaque réindexation et le classement personnalisé se perdait.
     /// </summary>
     internal const string UpsertItemSql = """
-        INSERT INTO Items (Path, Name, Description, Type, UseCount, IndexedAt)
-        VALUES (@path, @name, @desc, @type, 0, @indexed)
+        INSERT INTO Items (Path, Name, Description, Type, IsFromAppsFolder, UseCount, IndexedAt)
+        VALUES (@path, @name, @desc, @type, @fromAppsFolder, 0, @indexed)
         ON CONFLICT(Path) DO UPDATE SET
             Name = excluded.Name,
             Description = excluded.Description,
             Type = excluded.Type,
+            IsFromAppsFolder = excluded.IsFromAppsFolder,
             IndexedAt = excluded.IndexedAt
         """;
 
@@ -137,11 +139,20 @@ public sealed partial class IndexingService : IDisposable
     /// </summary>
     private static string NewIndexStamp() => DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
 
-    private static void InitializeDatabase(SqliteConnection conn)
+    internal static void InitializeDatabase(SqliteConnection conn)
     {
         using var cmd = conn.CreateCommand();
         cmd.CommandText = SchemaSql;
         cmd.ExecuteNonQuery();
+
+        // Migration additive : conserver l'index et ses compteurs d'usage. Le
+        // rafraîchissement d'AppsFolder au démarrage renseigne les anciennes entrées.
+        cmd.CommandText = "SELECT COUNT(*) FROM pragma_table_info('Items') WHERE name = 'IsFromAppsFolder'";
+        if (Convert.ToInt32(cmd.ExecuteScalar()) == 0)
+        {
+            cmd.CommandText = "ALTER TABLE Items ADD COLUMN IsFromAppsFolder INTEGER NOT NULL DEFAULT 0";
+            cmd.ExecuteNonQuery();
+        }
     }
     
     /// <summary>
@@ -169,7 +180,7 @@ public sealed partial class IndexingService : IDisposable
         lock (_dbLock)
         {
             using var cmd = _persistentConnection.CreateCommand();
-            cmd.CommandText = "SELECT Path, Name, Description, Type, LastUsed, UseCount FROM Items";
+            cmd.CommandText = "SELECT Path, Name, Description, Type, LastUsed, UseCount, IsFromAppsFolder FROM Items";
 
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
@@ -183,7 +194,8 @@ public sealed partial class IndexingService : IDisposable
                     LastUsed = reader.IsDBNull(4)
                         ? DateTime.MinValue
                         : DateTime.Parse(reader.GetString(4), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
-                    UseCount = reader.GetInt32(5)
+                    UseCount = reader.GetInt32(5),
+                    IsFromAppsFolder = reader.GetBoolean(6)
                 };
                 fresh[item.Path] = item;
             }
@@ -253,7 +265,7 @@ public sealed partial class IndexingService : IDisposable
             var folderTasks = settings.Search.IndexedFolders
                 .Select(folder => Task.Run(() =>
                 {
-                    if (!IndexFolder(folder, items, settings, token))
+                    if (!IndexFolder(folder, items, settings, token, preserveAppsFolderMetadata: false))
                         unreachableRoots.Add(folder);
                 }, token))
                 .ToArray();
@@ -272,12 +284,13 @@ public sealed partial class IndexingService : IDisposable
                 });
             }
 
-            // Déduplication par IDENTITÉ (cf. DeduplicationHelper.GetIdentityKey) : les entrées
-            // d'application sont fusionnées par nom (raccourci + AppsFolder), mais deux fichiers
-            // homonymes de dossiers différents restent deux éléments.
+            // Garder chaque chemin source : SearchService fusionne les applications à
+            // l'affichage. Supprimer ici l'entrée AppsFolder au profit d'un raccourci
+            // ferait perdre la provenance de son .exe au prochain événement du watcher.
+            // Quand le même chemin vient aussi du disque, les métadonnées shell priment.
             var deduplicated = items
-                .GroupBy(i => DeduplicationHelper.GetIdentityKey(i))
-                .Select(g => g.OrderByDescending(i => i.Type == ResultType.StoreApp ? 1 : 0)
+                .GroupBy(i => i.Path, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.OrderByDescending(i => i.IsFromAppsFolder)
                               .ThenByDescending(i => i.UseCount)
                               .First())
                 .ToList();
@@ -315,7 +328,8 @@ public sealed partial class IndexingService : IDisposable
     /// seront balayées) ; une racine existante mais illisible renvoie <c>false</c> pour que
     /// ses entrées et leur usage soient conservés.
     /// </summary>
-    private bool IndexFolder(string folderPath, ConcurrentBag<SearchResult> items, AppSettings settings, CancellationToken token)
+    private bool IndexFolder(string folderPath, ConcurrentBag<SearchResult> items, AppSettings settings,
+        CancellationToken token, bool preserveAppsFolderMetadata = true)
     {
         if (!Directory.Exists(folderPath))
         {
@@ -335,13 +349,13 @@ public sealed partial class IndexingService : IDisposable
         }
 
         var count = 0;
-        IndexFolderRecursive(folderPath, items, settings, ref count, 0, token);
+        IndexFolderRecursive(folderPath, items, settings, ref count, 0, token, preserveAppsFolderMetadata);
         _logger.Info($"Dossier '{Path.GetFileName(folderPath)}': {count} éléments");
         return true;
     }
 
     private void IndexFolderRecursive(string folderPath, ConcurrentBag<SearchResult> items,
-        AppSettings settings, ref int count, int depth, CancellationToken token)
+        AppSettings settings, ref int count, int depth, CancellationToken token, bool preserveAppsFolderMetadata = true)
     {
         if (depth > settings.Search.SearchDepth || token.IsCancellationRequested) return;
         
@@ -360,7 +374,7 @@ public sealed partial class IndexingService : IDisposable
                 if (!settings.Search.FileExtensions.Contains(ext)) continue;
                 if (!settings.Search.IndexHiddenFolders && (file.Attributes & FileAttributes.Hidden) != 0) continue;
                 
-                var result = CreateSearchResult(file.FullName);
+                var result = CreateSearchResult(file.FullName, preserveAppsFolderMetadata);
                 if (result != null)
                 {
                     items.Add(result);
@@ -372,7 +386,7 @@ public sealed partial class IndexingService : IDisposable
             foreach (var subDir in dirInfo.EnumerateDirectories())
             {
                 if (token.IsCancellationRequested) return;
-                IndexFolderRecursive(subDir.FullName, items, settings, ref count, depth + 1, token);
+                IndexFolderRecursive(subDir.FullName, items, settings, ref count, depth + 1, token, preserveAppsFolderMetadata);
             }
         }
         catch (UnauthorizedAccessException) { }
@@ -382,10 +396,18 @@ public sealed partial class IndexingService : IDisposable
         }
     }
 
-    private SearchResult? CreateSearchResult(string filePath)
+    private SearchResult? CreateSearchResult(string filePath, bool preserveAppsFolderMetadata = true)
     {
         try
         {
+            // Une modification du fichier ne change pas sa provenance shell ni son
+            // nom d'affichage (qui peut différer du nom du .exe). AppsFolder reste
+            // responsable de ces métadonnées lors du rafraîchissement des sources.
+            // Le scan complet utilise uniquement les métadonnées shell de sa propre passe.
+            if (preserveAppsFolderMetadata
+                && _cache.TryGetValue(filePath, out var installedApp) && installedApp.IsFromAppsFolder)
+                return installedApp.Clone();
+
             var name = Path.GetFileNameWithoutExtension(filePath);
             var ext = Path.GetExtension(filePath).ToLowerInvariant();
             var description = filePath;
@@ -449,6 +471,7 @@ public sealed partial class IndexingService : IDisposable
             var nameParam = cmd.Parameters.Add("@name", SqliteType.Text);
             var descParam = cmd.Parameters.Add("@desc", SqliteType.Text);
             var typeParam = cmd.Parameters.Add("@type", SqliteType.Integer);
+            var fromAppsFolderParam = cmd.Parameters.Add("@fromAppsFolder", SqliteType.Integer);
             var indexedParam = cmd.Parameters.Add("@indexed", SqliteType.Text);
 
             // Pré-compiler la requête pour éviter le re-parse à chaque itération
@@ -464,6 +487,7 @@ public sealed partial class IndexingService : IDisposable
                 nameParam.Value = item.Name;
                 descParam.Value = item.Description ?? string.Empty;
                 typeParam.Value = (int)item.Type;
+                fromAppsFolderParam.Value = item.IsFromAppsFolder;
                 indexedParam.Value = indexStamp;
 
                 await cmd.ExecuteNonQueryAsync(token).ConfigureAwait(false);
@@ -565,8 +589,6 @@ public sealed partial class IndexingService : IDisposable
     // vers SearchService et CalculatorService (Amélioration #3 et #7).
     // Utiliser SearchService.Search() à la place.
     
-    // Déduplication centralisée dans DeduplicationHelper.
-    
     public void RecordUsage(SearchResult item)
     {
         try
@@ -636,6 +658,7 @@ public sealed partial class IndexingService : IDisposable
             var nameParam = cmd.Parameters.Add("@name", SqliteType.Text);
             var descParam = cmd.Parameters.Add("@desc", SqliteType.Text);
             var typeParam = cmd.Parameters.Add("@type", SqliteType.Integer);
+            var fromAppsFolderParam = cmd.Parameters.Add("@fromAppsFolder", SqliteType.Integer);
             var indexedParam = cmd.Parameters.Add("@indexed", SqliteType.Text);
 
             foreach (var item in items)
@@ -644,6 +667,7 @@ public sealed partial class IndexingService : IDisposable
                 nameParam.Value = item.Name;
                 descParam.Value = item.Description ?? string.Empty;
                 typeParam.Value = (int)item.Type;
+                fromAppsFolderParam.Value = item.IsFromAppsFolder;
                 indexedParam.Value = stamp;
                 cmd.ExecuteNonQuery();
             }
@@ -959,7 +983,7 @@ public sealed partial class IndexingService : IDisposable
                 await Task.WhenAll(folderTasks).ConfigureAwait(false);
 
                 var newItems = items
-                    .GroupBy(i => DeduplicationHelper.GetIdentityKey(i))
+                    .GroupBy(i => i.Path, StringComparer.OrdinalIgnoreCase)
                     .Select(g => g.First())
                     .ToList();
 
@@ -1077,10 +1101,11 @@ public sealed partial class IndexingService : IDisposable
         foreach (var ws in windowsSettings)
             items.Add(ws);
         
-        // Supprimer les anciens Store apps, bookmarks et SystemControl du cache ET de la DB
+        // Les applications Win32 d'AppsFolder sont aussi des sources volatiles,
+        // même si leur type est Application et leur chemin ressemble à un fichier.
         var volatileTypes = new[] { ResultType.StoreApp, ResultType.Bookmark, ResultType.SystemControl };
         var keysToRemove = _cache
-            .Where(kv => volatileTypes.Contains(kv.Value.Type))
+            .Where(kv => kv.Value.IsFromAppsFolder || volatileTypes.Contains(kv.Value.Type))
             .Select(kv => kv.Key)
             .ToList();
         

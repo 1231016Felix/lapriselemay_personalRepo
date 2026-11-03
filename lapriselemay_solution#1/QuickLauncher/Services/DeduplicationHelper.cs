@@ -4,8 +4,8 @@ namespace QuickLauncher.Services;
 
 /// <summary>
 /// Utilitaire de déduplication des résultats de recherche.
-/// Centralise la logique partagée entre IndexingService et SearchService
-/// pour éviter les incohérences.
+/// Les sources de l'index gardent leur chemin ; leurs résultats affichés sont
+/// regroupés par identité pour éviter les doublons d'applications.
 /// </summary>
 public static class DeduplicationHelper
 {
@@ -24,7 +24,7 @@ public static class DeduplicationHelper
     };
 
     /// <summary>
-    /// Clé d'identité d'un résultat, utilisée par TOUTES les déduplications (index, recherche).
+    /// Clé d'identité d'un résultat pour la déduplication à l'affichage.
     /// <list type="bullet">
     ///   <item>Entrées « application installée » (raccourci .lnk, entrée de shell:AppsFolder,
     ///         page de paramètres, commande interne) : fusion par nom normalisé, car une même
@@ -57,7 +57,8 @@ public static class DeduplicationHelper
     public static bool IsInstalledAppEntry(SearchResult item) => item.Type switch
     {
         ResultType.StoreApp or ResultType.SystemControl or ResultType.AppControl => true,
-        ResultType.Application => item.Path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase),
+        ResultType.Application => item.IsFromAppsFolder
+            || item.Path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase),
         _ => false
     };
 

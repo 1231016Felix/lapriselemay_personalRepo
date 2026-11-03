@@ -47,14 +47,14 @@ public sealed class FolderFingerprintService : IDisposable
         public int TotalChanges => NewFolders.Count + ModifiedFolders.Count + DeletedFolders.Count;
     }
 
-    public FolderFingerprintService()
+    public FolderFingerprintService(string? databasePath = null)
     {
         var appData = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             Constants.AppName);
         
         Directory.CreateDirectory(appData);
-        _dbPath = Path.Combine(appData, "fingerprints.db");
+        _dbPath = databasePath ?? Path.Combine(appData, "fingerprints.db");
         _connectionString = $"Data Source={_dbPath};Mode=ReadWriteCreate;Cache=Shared";
         
         InitializeDatabase();

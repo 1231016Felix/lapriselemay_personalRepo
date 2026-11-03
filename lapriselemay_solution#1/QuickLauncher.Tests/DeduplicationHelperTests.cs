@@ -54,4 +54,31 @@ public class DeduplicationHelperTests
         var b = Item("setup", @"C:\Users\x\Downloads\B\setup.exe", ResultType.Application);
         Assert.NotEqual(Key(a), Key(b));
     }
+
+    [Theory]
+    [InlineData("com.squirrel.GitHubDesktop.GitHubDesktop")]
+    [InlineData(@"C:\Program Files\GitHub Desktop\GitHubDesktop.exe")]
+    public void Raccourci_et_app_Win32_d_AppsFolder_sont_fusionnes(string appPath)
+    {
+        var shortcut = Item("GitHub Desktop", @"C:\Start Menu\GitHub Desktop.lnk", ResultType.Application);
+        var shellApp = Item("GitHub Desktop", appPath, ResultType.Application);
+        shellApp.IsFromAppsFolder = true;
+
+        Assert.Equal(Key(shortcut), Key(shellApp));
+        Assert.Equal(Key(shortcut), Key(shellApp.Clone()));
+        Assert.Equal(ResultType.Application, shellApp.Clone().Type);
+        Assert.Equal(appPath, shellApp.Clone().Path);
+    }
+
+    [Fact]
+    public void App_installee_favori_et_executable_portable_homonymes_restent_distincts()
+    {
+        var installed = Item("GitHub Desktop", "com.squirrel.GitHubDesktop.GitHubDesktop", ResultType.Application);
+        installed.IsFromAppsFolder = true;
+        var portable = Item("GitHub Desktop", @"C:\Downloads\GitHub Desktop.exe", ResultType.Application);
+        var bookmark = Item("GitHub Desktop", "https://desktop.github.com/", ResultType.Bookmark);
+
+        Assert.NotEqual(Key(installed), Key(portable));
+        Assert.NotEqual(Key(installed), Key(bookmark));
+    }
 }

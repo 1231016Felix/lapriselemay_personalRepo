@@ -296,7 +296,8 @@ public class StoreAppService : IStoreAppService
                 Name = displayName,
                 Path = appUserModelId,
                 Description = isUwpApp ? "Microsoft Store" : "Application",
-                Type = isUwpApp ? ResultType.StoreApp : ResultType.Application
+                Type = isUwpApp ? ResultType.StoreApp : ResultType.Application,
+                IsFromAppsFolder = true
             };
         }
         catch
